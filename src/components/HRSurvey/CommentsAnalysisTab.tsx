@@ -1,40 +1,21 @@
+// Lógica extraída de HRSurveyDashboardPage.tsx (v1).
+// Filtros por dimensión + sentimiento + búsqueda libre + word cloud interactivo.
+
 import { useMemo, useState } from 'react';
 import type { SurveyDimension, Sentiment, SurveyFilters } from '../../types/hrSurvey';
-import { COMMENTS, DIMENSIONS, SURVEY_META } from '../../data/hrSurveyData';
+import { COMMENTS, DIMENSIONS } from '../../data/hrSurveyData';
 import { buildWordFrequencies } from '../../utils/textAnalysis';
-import WordCloud from '../../components/HRSurvey/WordCloud';
-import CommentList from '../../components/HRSurvey/CommentList';
-
-// ─── Constantes de UI ────────────────────────────────────────────────────────
+import WordCloud from './WordCloud';
+import CommentList from './CommentList';
 
 const SENTIMENT_OPTIONS: { value: Sentiment | 'todos'; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'positivo', label: 'Positivos' },
-  { value: 'neutro', label: 'Neutros' },
+  { value: 'todos',        label: 'Todos' },
+  { value: 'positivo',     label: 'Positivos' },
+  { value: 'neutro',       label: 'Neutros' },
   { value: 'constructivo', label: 'Constructivos' },
 ];
 
 const DIMENSION_ALL = 'todas' as const;
-
-// ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-}) {
-  return (
-    <div className="bg-gray-50 rounded-lg px-4 py-3">
-      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-      <p className="text-2xl font-semibold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
 
 function FilterChip({
   active,
@@ -65,32 +46,50 @@ function FilterChip({
   );
 }
 
-// ─── Página ──────────────────────────────────────────────────────────────────
+function StatCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
+  return (
+    <div className="bg-gray-50 rounded-lg px-4 py-3">
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+      <p className="text-2xl font-semibold text-gray-900">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
 
-export default function HRSurveyDashboardPage() {
+export default function CommentsAnalysisTab() {
   const [filters, setFilters] = useState<SurveyFilters>({
     dimension: DIMENSION_ALL,
     sentiment: 'todos',
     search: '',
   });
 
-  // Comentarios filtrados
-  const filtered = useMemo(() => {
-    return COMMENTS.filter(c => {
-      if (filters.dimension !== DIMENSION_ALL && c.dimension !== filters.dimension)
-        return false;
-      if (filters.sentiment !== 'todos' && c.sentiment !== filters.sentiment)
-        return false;
-      if (
-        filters.search.trim() &&
-        !c.text.toLowerCase().includes(filters.search.toLowerCase())
-      )
-        return false;
-      return true;
-    });
-  }, [filters]);
+  // Comentarios filtrados (los 3 filtros combinados)
+  const filtered = useMemo(
+    () =>
+      COMMENTS.filter(c => {
+        if (filters.dimension !== DIMENSION_ALL && c.dimension !== filters.dimension)
+          return false;
+        if (filters.sentiment !== 'todos' && c.sentiment !== filters.sentiment)
+          return false;
+        if (
+          filters.search.trim() &&
+          !c.text.toLowerCase().includes(filters.search.toLowerCase())
+        )
+          return false;
+        return true;
+      }),
+    [filters],
+  );
 
-  // Word cloud — se recalcula al cambiar dimensión o sentimiento (no en búsqueda)
+  // Word cloud — no reacciona a la búsqueda para no romper el layout mientras escribís
   const wordFreqs = useMemo(
     () =>
       buildWordFrequencies(
@@ -105,17 +104,15 @@ export default function HRSurveyDashboardPage() {
     [filters.dimension, filters.sentiment],
   );
 
-  // Contadores por sentimiento en los comentarios filtrados por dim/sentiment (sin búsqueda)
+  // Contadores de sentimiento (solo filtro por dimensión, sin búsqueda)
   const sentimentCounts = useMemo(() => {
-    const base = COMMENTS.filter(c => {
-      if (filters.dimension !== DIMENSION_ALL && c.dimension !== filters.dimension)
-        return false;
-      return true;
-    });
+    const base = COMMENTS.filter(
+      c => filters.dimension === DIMENSION_ALL || c.dimension === filters.dimension,
+    );
     return {
-      total: base.length,
-      positivo: base.filter(c => c.sentiment === 'positivo').length,
-      neutro: base.filter(c => c.sentiment === 'neutro').length,
+      total:        base.length,
+      positivo:     base.filter(c => c.sentiment === 'positivo').length,
+      neutro:       base.filter(c => c.sentiment === 'neutro').length,
       constructivo: base.filter(c => c.sentiment === 'constructivo').length,
     };
   }, [filters.dimension]);
@@ -132,29 +129,11 @@ export default function HRSurveyDashboardPage() {
   const clearSearch = () => setFilters(f => ({ ...f, search: '' }));
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-      {/* ── Encabezado ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {SURVEY_META.title}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Análisis de comentarios — edición {SURVEY_META.edition}
-          </p>
-        </div>
-        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full self-start sm:self-auto">
-          {SURVEY_META.totalResponses} respuestas · Datos anónimos
-        </span>
-      </div>
+    <div className="space-y-6">
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard
-          label="Comentarios"
-          value={sentimentCounts.total}
-          sub="en dimensión seleccionada"
-        />
+        <StatCard label="Comentarios" value={sentimentCounts.total} sub="en dimensión seleccionada" />
         <StatCard
           label="Positivos"
           value={sentimentCounts.positivo}
@@ -200,14 +179,13 @@ export default function HRSurveyDashboardPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium text-gray-700">Palabras más frecuentes</p>
-          <p className="text-xs text-gray-400">Hacé clic en una palabra para filtrar</p>
+          <p className="text-xs text-gray-400">Clic en una palabra para filtrar</p>
         </div>
         <WordCloud words={wordFreqs} height={280} onWordClick={handleWordClick} />
       </div>
 
-      {/* ── Filtros: sentimiento + búsqueda ── */}
+      {/* ── Sentimiento + búsqueda ── */}
       <div className="flex flex-col sm:flex-row gap-3">
-        {/* Sentimiento */}
         <div className="flex flex-wrap gap-2 items-center">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mr-1">
             Sentimiento
@@ -218,35 +196,21 @@ export default function HRSurveyDashboardPage() {
               active={filters.sentiment === opt.value}
               label={opt.label}
               color={
-                opt.value === 'positivo'
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : opt.value === 'neutro'
-                  ? 'bg-gray-200 text-gray-800'
-                  : opt.value === 'constructivo'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-gray-900 text-white'
+                opt.value === 'positivo'     ? 'bg-emerald-100 text-emerald-800' :
+                opt.value === 'neutro'       ? 'bg-gray-200 text-gray-800' :
+                opt.value === 'constructivo' ? 'bg-amber-100 text-amber-800' :
+                                               'bg-gray-900 text-white'
               }
               onClick={() => setSentiment(opt.value)}
             />
           ))}
         </div>
 
-        {/* Búsqueda libre */}
+        {/* Búsqueda */}
         <div className="relative flex-1 min-w-[200px]">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <svg
-              className="w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-              />
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
           </div>
           <input
@@ -265,12 +229,7 @@ export default function HRSurveyDashboardPage() {
               aria-label="Limpiar búsqueda"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
@@ -280,15 +239,14 @@ export default function HRSurveyDashboardPage() {
       {/* ── Lista de comentarios ── */}
       <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium text-gray-700">
-            Comentarios
-          </p>
+          <p className="text-sm font-medium text-gray-700">Comentarios</p>
           <span className="text-xs text-gray-400">
             {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
           </span>
         </div>
         <CommentList comments={filtered} searchTerm={filters.search} />
       </div>
+
     </div>
   );
 }

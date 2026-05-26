@@ -31,7 +31,7 @@ import ContribucionMarginalDashboard from './pages/ContribucionMarginalDashboard
 
 // Agregar al bloque de imports de páginas
 import RemitosReportPage from './pages/Stock/Reports/RemitosReportsPage';
-import HRSurveyDashboardPage from './pages/HrSurveyDashboard/HRSurveydashboard';
+import HRSurveyDashboardPage from './pages/HrSurveyDashboard/HRSurveyDashboardPage';
 // Toaster
 import { Toaster } from 'react-hot-toast';
 
