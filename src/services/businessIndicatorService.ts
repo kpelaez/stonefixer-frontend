@@ -7,7 +7,7 @@ import {
 
 
 // Base URL de la API - configuración dinámica
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 class BusinessIndicatorService {
   private async fetchWithAuth(url: string, options: RequestInit = {}) {

@@ -98,7 +98,19 @@ export const menuItems: MenuItem[] = [
     children: [
       { id: 'sectores-directorio', title: 'Directorio', path: '/teams/directorio' },
       { id: 'sectores-dat', title: 'D.A.T.', path: '/teams/desarrollo' },
-      { id: 'sectores-rrhh', title: 'Recursos Humanos', path: '/teams/rrhh' },
+      { 
+        id: 'sectores-rrhh', 
+        title: 'Recursos Humanos',  
+        children: [
+          {
+          id: 'hr-survey',
+          title: 'Encuesta Clima Laboral',
+          path: '/teams/rrhh/dashboards/hr-survey',
+          icon: BarChart2,
+          badge: '2026',
+          },
+        ]
+      },
       { id: 'sectores-comex', title: 'Comercio Exterior', path: '/teams/comex' },
       { id: 'sectores-vendedores', title: 'Vendedores', path: '/teams/vendedores' },
       { id: 'sectores-asistencia', title: 'Asistencia Técnica', path: '/teams/asistencia-tecnica' },
