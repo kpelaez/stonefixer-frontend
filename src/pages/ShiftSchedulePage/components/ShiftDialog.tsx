@@ -14,6 +14,8 @@ interface ShiftDialogProps {
   onShiftCreated: () => void;
   onShiftUpdated: () => void;
   onShiftDeleted: () => void;
+  users?: { id: number; full_name: string }[]; // lista para admins
+  isSupervisor?: boolean;
 }
 
 const ShiftDialog = ({
@@ -24,6 +26,8 @@ const ShiftDialog = ({
   onShiftCreated,
   onShiftUpdated,
   onShiftDeleted,
+  users,
+  isSupervisor,
 }: ShiftDialogProps) => {
   const [shiftType, setShiftType] = useState<ShiftType>('regular');
   const [notes, setNotes] = useState('');
@@ -31,9 +35,11 @@ const ShiftDialog = ({
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = !!existingShift;
-//   const isMyShift = existingShift?.user_id === getCurrentUserId(); // Necesitarás implementar esto
-const currentUserId = useAuthStore(state => state.user?.id) || 1;
-const isMyShift = existingShift?.user_id === currentUserId;
+  const currentUserId = useAuthStore(state => state.user?.id) || 1;
+  const [targetUserId, setTargetUserId] = useState<number | undefined>(undefined);
+
+  const isMyShift = existingShift?.user_id === currentUserId;
+  const canDelete = isMyShift || isSupervisor;
 
   useEffect(() => {
     if (existingShift) {
@@ -42,9 +48,10 @@ const isMyShift = existingShift?.user_id === currentUserId;
     } else {
       setShiftType('regular');
       setNotes('');
+      setTargetUserId(undefined); // reset al abrir para nuevo turno
     }
     setError(null);
-  }, [existingShift]);
+  }, [existingShift, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +75,7 @@ const isMyShift = existingShift?.user_id === currentUserId;
           date: selectedDate,
           shift_type: shiftType,
           notes: notes.trim() || undefined,
+          ...(isSupervisor && targetUserId ? { target_user_id: targetUserId } : {}),
         };
         await shiftScheduleService.createShiftSchedule(newShift);
         onShiftCreated();
@@ -134,6 +142,22 @@ const isMyShift = existingShift?.user_id === currentUserId;
               </p>
             </div>
           )}
+          {/* {Si es supervisor, puede elegir usuario} */}
+          {isSupervisor && !isEditing && users && users.length > 0 && (
+            <div className="form-group">
+              <label htmlFor="targetUser">Asignar a usuario</label>
+              <select
+                id="targetUser"
+                value={targetUserId ?? ''}
+                onChange={(e) => setTargetUserId(e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">— Yo mismo —</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -188,7 +212,7 @@ const isMyShift = existingShift?.user_id === currentUserId;
 
           {/* Acciones */}
           <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-            {isEditing && isMyShift ? (
+            {isEditing && canDelete ? (
               <button
                 type="button"
                 onClick={handleDelete}
