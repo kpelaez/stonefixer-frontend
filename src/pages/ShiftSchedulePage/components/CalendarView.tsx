@@ -19,6 +19,8 @@ interface CalendarViewProps {
   onShiftCreated: () => void;
   onShiftUpdated: () => void;
   onShiftDeleted: () => void;
+  users?: { id: number; full_name: string }[]; 
+  isSupervisor?: boolean;                       
 }
 
 const CalendarView = ({
@@ -29,6 +31,8 @@ const CalendarView = ({
   onShiftCreated,
   onShiftUpdated,
   onShiftDeleted,
+  users,
+  isSupervisor,
 }: CalendarViewProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -177,6 +181,8 @@ const CalendarView = ({
           onShiftCreated={onShiftCreated}
           onShiftUpdated={onShiftUpdated}
           onShiftDeleted={onShiftDeleted}
+          users={users}
+          isSupervisor={isSupervisor}
         />
       )}
 

@@ -6,6 +6,8 @@ import StatsPanel from './components/StatsPanel';
 import AlertsBanner from './components/AlertsBanner';
 import shiftScheduleService from '../../services/shiftScheduleService';
 import { ShiftSchedule, ShiftScheduleStats, ShiftAlert } from '../../types/shiftSchedule';
+import { useAuthStore } from '../../stores/authStore';
+import inventoryApi from '../../services/inventoryApi';
 
 const ShiftSchedulePage = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -16,6 +18,11 @@ const ShiftSchedulePage = () => {
   const [loadingStats, setLoadingStats] = useState(true);   // ← Separado
   const [shiftsError, setShiftsError] = useState<string | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [users, setUsers] = useState<{ id: number; full_name: string }[]>([]);
+  const isSupervisor = useAuthStore(state => 
+    state.roles.some(r => ['admin', 'manager'].includes(r))
+  );
+
 
   // Cargar datos
   const loadData = useCallback(async (month: Date) => {
@@ -25,6 +32,12 @@ const ShiftSchedulePage = () => {
     // === Cargar shifts ===
     setLoadingShifts(true);
     setShiftsError(null);
+
+    if (!isSupervisor) return; // usuarios normales no necesitan la lista
+    
+    inventoryApi.getUsers()
+      .then(data => setUsers(data.map((u: any) => ({ id: u.id, full_name: u.full_name }))))
+      .catch(() => {}); // no crítico, el dialog simplemente no muestra el selector
 
     try {
       const data = await shiftScheduleService.getShiftSchedules(startDate, endDate);
@@ -57,7 +70,7 @@ const ShiftSchedulePage = () => {
     } finally {
       setLoadingStats(false);
     }
-  }, []);
+  }, [isSupervisor]);
 
 
   useEffect(() => {
@@ -141,6 +154,8 @@ const ShiftSchedulePage = () => {
               onShiftCreated={handleShiftCreated}
               onShiftUpdated={handleShiftUpdated}
               onShiftDeleted={handleShiftDeleted}
+              users={users}
+              isSupervisor={isSupervisor}
             />
           )}
 
