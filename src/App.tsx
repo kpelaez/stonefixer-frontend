@@ -21,6 +21,7 @@ import MyAssetsPage from './pages/Inventory/MyAssetsPage';
 import InventoryReportsPage from './pages/Inventory/InventoryReportsPage';
 import AssetDetailPage from './pages/Inventory/AssetDetailPage';
 
+
 // Página generacion de Documento de asignación
 import AssignmentDetailPage from './pages/Inventory/AssignmentDetailPage';
 import UsersManagementPage from './pages/Users/UsersManagementPage';
@@ -30,6 +31,7 @@ import ContribucionMarginalDashboard from './pages/ContribucionMarginalDashboard
 
 // Agregar al bloque de imports de páginas
 import RemitosReportPage from './pages/Stock/Reports/RemitosReportsPage';
+import HRSurveyDashboardPage from './pages/HrSurveyDashboard/HRSurveydashboard';
 // Toaster
 import { Toaster } from 'react-hot-toast';
 
@@ -315,6 +317,14 @@ function App() {
                   <ContribucionMarginalDashboard />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/teams/rrhh/dashboards/hr-survey"
+              element={
+                <RoleProtectedRoute requiredRoles={['admin', 'manager']}>
+                  <HRSurveyDashboardPage />
+                </RoleProtectedRoute>
+              }
             />
 
 
