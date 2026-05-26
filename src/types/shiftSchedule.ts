@@ -24,6 +24,7 @@ export interface ShiftScheduleCreate {
   date: string; // ISO format
   shift_type: ShiftType;
   notes?: string;
+  target_user_id?: number;
 }
 
 export interface ShiftScheduleUpdate {
