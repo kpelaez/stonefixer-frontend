@@ -165,11 +165,6 @@ export const useAuthStore = create<AuthState>((set, get)=>({
         isLoading: false
       });
 
-      // Opcionalmente, inicia sesion automaticamente cuando se registra
-      await get().login({
-        email: credentials.email,
-        password: credentials.password,
-      });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Error desconocido',

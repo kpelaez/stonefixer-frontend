@@ -161,7 +161,7 @@ const UserRegisterPage = ()=>{
         });
         
         setSubmitStatus('success');
-        setStatusMessage('Usuario registrado con éxito');
+        setStatusMessage(`Usuario ${formData.email} registrado con éxito`);
         
         // Resetear formulario
         setFormData({
