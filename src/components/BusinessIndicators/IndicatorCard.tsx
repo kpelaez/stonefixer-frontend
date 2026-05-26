@@ -10,7 +10,7 @@ interface IndicatorCardProps {
 
 const IndicatorCard: React.FC<IndicatorCardProps> = ({indicator, onClick}) => {
   
-  const formatValue = (value: number | string, format: IndicatorFormat, unit?: string): string => {
+  const formatValue = (value: number | string, format: IndicatorFormat, _unit?: string): string => {
     if(typeof value === 'string') return value;
 
     switch(format) {

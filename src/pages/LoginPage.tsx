@@ -47,7 +47,7 @@ const LoginPage = () => {
           <div className="sm:mx-auto sm:w-full sm:max-w-sm">
             <img
               alt="Omnimedica Logo"
-              src="../public/LOGO OMNIMEDICA.png"
+              src="/LOGO OMNIMEDICA.png"
               className="mx-auto h-35 w-auto"
             />
             <h2 className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">

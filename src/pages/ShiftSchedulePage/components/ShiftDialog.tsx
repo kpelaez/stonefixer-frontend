@@ -37,21 +37,14 @@ const isMyShift = existingShift?.user_id === currentUserId;
 
   useEffect(() => {
     if (existingShift) {
-      // setShiftType(existingShift.shift_type);
+      setShiftType(existingShift.shift_type);
       setNotes(existingShift.notes || '');
     } else {
-      // setShiftType('regular');
+      setShiftType('regular');
       setNotes('');
     }
     setError(null);
   }, [existingShift]);
-
-  // Helper para obtener el ID del usuario actual
-  // Puedes implementarlo según tu sistema de auth
-//   function getCurrentUserId(): number {
-//     // Por ahora retornamos 1, pero deberías obtenerlo del context/store
-//     return 1;
-//   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +58,7 @@ const isMyShift = existingShift?.user_id === currentUserId;
       if (isEditing && existingShift) {
         // Actualizar turno existente
         await shiftScheduleService.updateShiftSchedule(existingShift.id, {
-          // shift_type: shiftType,
+          shift_type: shiftType,
           notes: notes.trim() || undefined,
         });
         onShiftUpdated();
@@ -73,7 +66,7 @@ const isMyShift = existingShift?.user_id === currentUserId;
         // Crear nuevo turno
         const newShift: ShiftScheduleCreate = {
           date: selectedDate,
-          shift_type: 'early',
+          shift_type: shiftType,
           notes: notes.trim() || undefined,
         };
         await shiftScheduleService.createShiftSchedule(newShift);

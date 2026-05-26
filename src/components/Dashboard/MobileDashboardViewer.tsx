@@ -1,5 +1,5 @@
 // src/components/Dashboard/MobileDashboardViewer.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, RotateCcw, Maximize2, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 

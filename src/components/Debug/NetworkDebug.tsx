@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import businessIndicatorService from '../../services/businessIndicatorService';
 
 interface ConnectionTest {
   name: string;
@@ -34,13 +33,13 @@ const NetworkDebug: React.FC = () => {
       },
       {
         name: 'Auth Endpoint',
-        url: `${apiUrl}/token`,
+        url: `${apiUrl}/api/v1/auth/token`,
         status: 'pending',
         message: 'Iniciando...'
       },
       {
         name: 'User Profile',
-        url: `${apiUrl}/me`,
+        url: `${apiUrl}/api/v1/users/me`,
         status: 'pending',
         message: 'Iniciando...'
       }
@@ -145,51 +144,51 @@ const NetworkDebug: React.FC = () => {
     }
 
     // Test 4: User Profile (requiere token)
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      try {
-        const startTime = Date.now();
-        const response = await fetch(`${apiUrl}/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const endTime = Date.now();
+  //   const token = localStorage.getItem('auth_token');
+  //   if (token) {
+  //     try {
+  //       const startTime = Date.now();
+  //       const response = await fetch(`${apiUrl}/me`, {
+  //         headers: {
+  //           'Authorization': `Bearer ${token}`
+  //         }
+  //       });
+  //       const endTime = Date.now();
         
-        setTests(prev => prev.map(test => 
-          test.name === 'User Profile' 
-            ? {
-                ...test,
-                status: response.ok ? 'success' : 'error',
-                message: response.ok 
-                  ? `✅ Perfil de usuario accesible (${response.status})` 
-                  : `❌ Error ${response.status} - Token inválido o expirado`,
-                responseTime: endTime - startTime
-              }
-            : test
-        ));
-      } catch (error) {
-        setTests(prev => prev.map(test => 
-          test.name === 'User Profile' 
-            ? {
-                ...test,
-                status: 'error',
-                message: `❌ Error de conexión: ${error instanceof Error ? error.message : 'Unknown error'}`
-              }
-            : test
-        ));
-      }
-    } else {
-      setTests(prev => prev.map(test => 
-        test.name === 'User Profile' 
-          ? {
-              ...test,
-              status: 'error',
-              message: '⚠️ No hay token de autenticación'
-            }
-          : test
-      ));
-    }
+  //       setTests(prev => prev.map(test => 
+  //         test.name === 'User Profile' 
+  //           ? {
+  //               ...test,
+  //               status: response.ok ? 'success' : 'error',
+  //               message: response.ok 
+  //                 ? `✅ Perfil de usuario accesible (${response.status})` 
+  //                 : `❌ Error ${response.status} - Token inválido o expirado`,
+  //               responseTime: endTime - startTime
+  //             }
+  //           : test
+  //       ));
+  //     } catch (error) {
+  //       setTests(prev => prev.map(test => 
+  //         test.name === 'User Profile' 
+  //           ? {
+  //               ...test,
+  //               status: 'error',
+  //               message: `❌ Error de conexión: ${error instanceof Error ? error.message : 'Unknown error'}`
+  //             }
+  //           : test
+  //       ));
+  //     }
+  //   } else {
+  //     setTests(prev => prev.map(test => 
+  //       test.name === 'User Profile' 
+  //         ? {
+  //             ...test,
+  //             status: 'error',
+  //             message: '⚠️ No hay token de autenticación'
+  //           }
+  //         : test
+  //     ));
+  //   }
 
     setIsRunning(false);
   };
@@ -223,6 +222,10 @@ const NetworkDebug: React.FC = () => {
         return 'text-gray-600';
     }
   };
+
+  if(!import.meta.env.DEV) {
+    return null; // No renderizar nada en producción
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
@@ -312,7 +315,7 @@ const NetworkDebug: React.FC = () => {
         <div className="text-xs font-mono bg-white p-3 rounded border overflow-x-auto">
           <div><strong>User Agent:</strong> {navigator.userAgent}</div>
           <div><strong>Timestamp:</strong> {new Date().toISOString()}</div>
-          <div><strong>Local Storage Token:</strong> {localStorage.getItem('auth_token') ? 'Present' : 'Missing'}</div>
+          <div><strong>Auth Cookie:</strong> {document.cookie.includes('access_token') ? 'Present (httpOnly)' : 'Missing'}</div>
         </div>
       </div>
     </div>

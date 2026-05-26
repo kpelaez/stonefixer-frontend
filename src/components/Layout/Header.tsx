@@ -23,7 +23,7 @@ import {
   User, 
   Settings, 
   LogOut, 
-  ChevronDown 
+  ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { findMenuItemByPath, menuItems } from '../../config/menuConfig';

@@ -37,7 +37,7 @@ const ChartIndicatorCard: React.FC<ChartIndicatorCardProps> = ({
 }) => {
   
   // Función para formatear el valor según el tipo
-  const formatValue = (value: number | string, format: IndicatorFormat, unit?: string): string => {
+  const formatValue = (value: number | string, format: IndicatorFormat, _unit?: string): string => {
     if (typeof value === 'string') return value;
     
     switch (format) {

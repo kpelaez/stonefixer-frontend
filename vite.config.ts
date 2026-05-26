@@ -22,14 +22,16 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    // Opcional: configurar proxy para el backedn
-    proxy:{
+    // ── Proxy solo en desarrollo ──────────────────────────────────────────
+    // Redirige /api/* al backend local para evitar problemas de CORS y cookies.
+    // En producción Nginx maneja esto directamente, este bloque no aplica.
+    proxy: {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
-      }
-    }
+      },
+    },
   },
   preview: {
     host: '0.0.0.0',

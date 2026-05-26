@@ -15,6 +15,7 @@ interface CalendarViewProps {
   shifts: ShiftSchedule[];
   currentMonth: Date;
   onMonthChange: (direction: 'prev' | 'next') => void;
+  onGoToToday: () => void;
   onShiftCreated: () => void;
   onShiftUpdated: () => void;
   onShiftDeleted: () => void;
@@ -24,6 +25,7 @@ const CalendarView = ({
   shifts,
   currentMonth,
   onMonthChange,
+  onGoToToday,
   onShiftCreated,
   onShiftUpdated,
   onShiftDeleted,
@@ -78,9 +80,8 @@ const CalendarView = ({
     const calendarApi = calendarRef.current?.getApi();
     if (calendarApi) {
       calendarApi.today();
-      // Forzar recarga de datos para el mes actual
-      window.location.reload();
     }
+    onGoToToday();
   };
 
   const handlePrevMonth = () => {

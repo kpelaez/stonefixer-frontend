@@ -1,7 +1,6 @@
 // src/pages/ShiftSchedulePage/ShiftSchedulePage.tsx
-import { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, addMonths } from 'date-fns';
-import Layout from '../../components/Layout/MainLayout';
+import { useState, useEffect, useCallback } from 'react';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths} from 'date-fns';
 import CalendarView from './components/CalendarView';
 import StatsPanel from './components/StatsPanel';
 import AlertsBanner from './components/AlertsBanner';
@@ -15,72 +14,73 @@ const ShiftSchedulePage = () => {
   const [alerts, setAlerts] = useState<ShiftAlert[]>([]);
   const [loadingShifts, setLoadingShifts] = useState(true); // ← Separado
   const [loadingStats, setLoadingStats] = useState(true);   // ← Separado
-  const [error, setError] = useState<string | null>(null);
+  const [shiftsError, setShiftsError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   // Cargar datos
-  const loadData = async () => {
+  const loadData = useCallback(async (month: Date) => {
+    const startDate = format(startOfMonth(month), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(month), 'yyyy-MM-dd');
+
+    // === Cargar shifts ===
+    setLoadingShifts(true);
+    setShiftsError(null);
+
     try {
-      setError(null);
-      const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-      const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-
-      // Cargar shifts primero (lo más importante)
-      setLoadingShifts(true);
-      shiftScheduleService.getShiftSchedules(startDate, endDate)
-        .then(data => {
-          setShifts(data);
-          setLoadingShifts(false);
-        })
-        .catch(err => console.error('Error loading shifts:', err));
-
-      // Cargar stats y alerts en paralelo (menos crítico)
-      setLoadingStats(true);
-      Promise.all([
-        shiftScheduleService.getStats(startDate, endDate),
-        shiftScheduleService.getAlerts()
-      ])
-        .then(([statsData, alertsData]) => {
-          setStats(statsData);
-          setAlerts(alertsData.alerts);
-          setLoadingStats(false);
-        })
-        .catch(err => console.error('Error loading stats:', err));
-
+      const data = await shiftScheduleService.getShiftSchedules(startDate, endDate);
+      setShifts(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error cargando datos');
+      // FIX: antes el error era silencioso (solo console.error).
+      // Ahora se muestra en pantalla para que el usuario sepa qué pasó.
+      const message = err instanceof Error ? err.message : 'Error al cargar los turnos';
+      console.error('Error loading shifts:', err);
+      setShiftsError(message);
+    } finally {
+      setLoadingShifts(false);
     }
-  };
+
+    // === Cargar stats y alertas en paralelo (no crítico) ===
+    setLoadingStats(true);
+    setStatsError(null);
+
+    try {
+      const [statsData, alertsData] = await Promise.all([
+        shiftScheduleService.getStats(startDate, endDate),
+        shiftScheduleService.getAlerts(),
+      ]);
+      setStats(statsData);
+      setAlerts(alertsData.alerts);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cargar estadísticas';
+      console.error('Error loading stats/alerts:', err);
+      setStatsError(message);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
 
   useEffect(() => {
-    loadData();
-  }, [currentMonth]);
+    loadData(currentMonth);
+  }, [currentMonth, loadData]);
 
   const handleMonthChange = (direction: 'prev' | 'next') => {
-    setCurrentMonth(prev => {
-    const newDate = new Date(prev);
-    if (direction === 'next') {
-      newDate.setMonth(newDate.getMonth() + 1);
-    } else {
-      newDate.setMonth(newDate.getMonth() - 1);
-    }
-    return newDate;
-    });
+    setCurrentMonth(prev =>
+      direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)
+    );
   };
 
-  const handleShiftCreated = () => {
-    loadData(); // Recargar datos después de crear
+  // FIX: navegación a "Hoy" sin window.location.reload()
+  const handleGoToToday = () => {
+    setCurrentMonth(new Date());
   };
 
-  const handleShiftUpdated = () => {
-    loadData(); // Recargar datos después de actualizar
-  };
-
-  const handleShiftDeleted = () => {
-    loadData(); // Recargar datos después de eliminar
-  };
+  const handleShiftCreated = () => loadData(currentMonth);
+  const handleShiftUpdated = () => loadData(currentMonth);
+  const handleShiftDeleted = () => loadData(currentMonth);
 
   return (
-    <Layout>
+    <div>
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -99,13 +99,26 @@ const ShiftSchedulePage = () => {
           <AlertsBanner alerts={alerts} />
         )}
 
-        {/* Error */}
-        {error && (
+        {/* Error de turnos — visible para el usuario */}
+        {shiftsError && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">❌ {error}</p>
+            <p className="text-red-800 font-medium"> Error al cargar turnos</p>
+            <p className="text-red-600 text-sm mt-1">{shiftsError}</p>
+            <button
+              onClick={() => loadData(currentMonth)}
+              className="mt-2 text-sm text-red-700 underline hover:no-underline"
+            >
+              Reintentar
+            </button>
           </div>
         )}
 
+        {/* Error de estadísticas — no bloquea el calendario */}
+        {statsError && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <p className="text-yellow-800 text-sm">⚠️ No se pudieron cargar las estadísticas</p>
+          </div>
+        )}
         {/* Estadísticas */}
         {loadingStats ? (
           <div className="bg-gray-100 rounded-lg h-32 animate-pulse" />
@@ -124,6 +137,7 @@ const ShiftSchedulePage = () => {
               shifts={shifts}
               currentMonth={currentMonth}
               onMonthChange={handleMonthChange}
+              onGoToToday={handleGoToToday}
               onShiftCreated={handleShiftCreated}
               onShiftUpdated={handleShiftUpdated}
               onShiftDeleted={handleShiftDeleted}
@@ -140,7 +154,7 @@ const ShiftSchedulePage = () => {
           )}
         </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 

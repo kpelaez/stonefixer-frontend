@@ -25,14 +25,15 @@ import {
     ClipboardList,
     FileText,
     ShieldAlert,
-    Info
+    Info,
+    Building2,
 } from 'lucide-react';
 
 /**
  * Roles disponibles en el sistema
  * IMPORTANTE: Estos deben coincidir con el backend
  */
-export type UserRole = 'admin' | 'manager' | 'user';
+export type UserRole = 'admin' | 'manager' | 'user' | 'inventory_manager';
 
 /**
  * Definicion de un item del menu
@@ -67,124 +68,130 @@ export const menuItems: MenuItem[] = [
     requiredRoles: ['admin', 'manager', 'user']
   },
   {
-    id: 'business-indicators',
-    title: 'Indicadores',
-    path: '/business-indicators',
+    id: 'dashboards',
+    title: 'Dashboards',
     icon: BarChart2,
-    requiredRoles: ['admin', 'manager']
-  },
-  {
-    id: 'sectors',
-    title: 'Sectores',
-    icon: Users,
     requiredRoles: ['admin', 'manager'],
     children: [
       {
-        id: 'sectors-directorio',
-        title: 'Directorio',
-        path: '/teams/directorio'
+        id: 'business-indicators',
+        title: 'Indicadores',
+        path: '/business-indicators',
+        icon: BarChart2,
+        disabled: true,          // ← próximamente, sin funcionalidad aún
+        badge: 'Próximamente',
       },
       {
-        id: 'sectors-dat',
-        title: 'D.A.T.',
-        path: '/teams/desarrollo'
-      },
-      {
-        id: 'sectors-rrhh',
-        title: 'Recursos Humanos',
-        path: '/teams/rrhh'
-      },
-      {
-        id: 'sectors-comex',
-        title: 'Comercio Exterior',
-        path: '/teams/comex'
-      },
-      {
-        id: 'sectors-comercial',
-        title: 'Comercial',
-        path: '/teams/comercial',
-        children: [
-          {
-            id: 'comercial-vendedores',
-            title: 'Vendedores',
-            path: '/teams/comercial/vendedores'
-          },
-          {
-            id: 'comercial-asistencia',
-            title: 'Asistencia Técnica',
-            path: '/teams/comercial/asistencia-tecnica'
-          },
-          {
-            id: 'comercial-admin-ventas',
-            title: 'Administración de Ventas',
-            path: '/teams/comercial/admin-ventas'
-          }
-        ]
-      },
-      {
-        id: 'sectors-administracion',
-        title: 'Administración',
-        path: '/teams/administracion',
-        children: [
-          {
-            id: 'admin-pago-proveedores',
-            title: 'Pago a Proveedores',
-            path: '/teams/administracion/pago-proveedores'
-          },
-          {
-            id: 'admin-facturacion',
-            title: 'Facturación',
-            path: '/teams/administracion/facturacion'
-          },
-          {
-            id: 'admin-logistica-inversa',
-            title: 'Logística Inversa',
-            path: '/teams/administracion/logistica-inversa'
-          },
-          {
-            id: 'admin-tesoreria',
-            title: 'Tesorería',
-            path: '/teams/administracion/tesoreria'
-          },
-          {
-            id: 'admin-stock',
-            title: 'Stock',
-            path: '/teams/administracion/stock'
-          }
-        ]
+        id: 'contribucion-marginal',      
+        title: 'Contribución Marginal',
+        path: '/dashboards/contribucion-marginal',
+        icon: BarChart2,
       }
     ]
   },
-  
+
+  {
+    id: 'sectores',
+    title: 'Sectores',
+    icon: Building2,
+    requiredRoles: ['admin', 'manager', 'user'],
+    children: [
+      { id: 'sectores-directorio', title: 'Directorio', path: '/teams/directorio' },
+      { id: 'sectores-dat', title: 'D.A.T.', path: '/teams/desarrollo' },
+      { 
+        id: 'sectores-rrhh', 
+        title: 'Recursos Humanos',  
+        children: [
+          {
+          id: 'hr-survey',
+          title: 'Encuesta Clima Laboral',
+          path: '/teams/rrhh/dashboards/hr-survey',
+          icon: BarChart2,
+          badge: '2026',
+          },
+        ]
+      },
+      { id: 'sectores-comex', title: 'Comercio Exterior', path: '/teams/comex' },
+      { id: 'sectores-vendedores', title: 'Vendedores', path: '/teams/vendedores' },
+      { id: 'sectores-asistencia', title: 'Asistencia Técnica', path: '/teams/asistencia-tecnica' },
+      { id: 'sectores-adminventas', title: 'Administración de Ventas', path: '/teams/admin-ventas' },
+      { id: 'sectores-proveedores', title: 'Pago a Proveedores', path: '/teams/pago-proveedores' },
+      { id: 'sectores-facturacion', title: 'Facturación', path: '/teams/facturacion' },
+      { id: 'sectores-logistica', title: 'Logística', path: '/teams/logistica-inversa' },
+      { id: 'sectores-tesoreria', title: 'Tesorería', path: '/teams/tesoreria' },
+      {
+        id: 'sectores-stock',
+        title: 'Stock',
+        children: [
+          {
+            id: 'sectores-stock-turnos',
+            title: 'Turnos',
+            path: '/teams/stock/schedule',
+            requiredRoles: ['admin', 'manager', 'user'],
+          },
+          {
+            id: 'sectores-stock-overtime',
+            title: 'Mis Horas a Comp.',
+            path: '/teams/stock/overtime',
+            requiredRoles: ['admin', 'manager', 'user'],
+          },
+          {
+            id: 'sectores-stock-overtime-manage',
+            title: 'Gestión Horas Comp.',
+            path: '/overtime/manage',
+            requiredRoles: ['admin', 'manager'],   // Solo managers ven esto
+          },
+          {
+            id: 'sectores-stock-reportes',
+            title: 'Reportes',
+            icon: BarChart2,  
+            requiredRoles: ['admin', 'manager', 'user'],
+            children: [
+              {
+                id: 'stock-report-remitos-cx',
+                title: 'Planificación CX',
+                path: '/stock/reports/remitos-cx',
+                requiredRoles: ['admin', 'manager', 'user'],
+              },
+            ],
+          },
+        ]
+      },
+    ]
+  },  
   {
     id: 'tech-inventory',
     title: 'Inventario Tecnológico',
     icon: Laptop,
-    requiredRoles: ['admin', 'manager'],
+    requiredRoles: ['admin', 'manager', 'inventory_manager', 'user'],
     children: [
       {
         id: 'tech-assets',
         title: 'Activos',
-        path: '/tech-inventory/assets',
-        icon: Package
+        path: '/inventory/tech-assets',
+        icon: Package,
+        requiredRoles: ['admin', 'manager', 'inventory_manager', 'user'],
       },
       {
         id: 'tech-assignments',
         title: 'Asignaciones',
-        path: '/tech-inventory/assignments',
-        icon: ClipboardList
+        path: '/inventory/assignments',
+        icon: ClipboardList,
+        requiredRoles: ['admin', 'manager', 'inventory_manager'],
       },
       {
         id: 'tech-maintenance',
         title: 'Mantenimiento',
-        path: '/tech-inventory/maintenance',
-        icon: ShieldAlert
+        path: '/inventory/maintenance',        
+        icon: ShieldAlert,
+        requiredRoles: ['admin', 'manager', 'inventory_manager'],
       },
       {
         id: 'tech-reports',
         title: 'Reportes',
         path: '/tech-inventory/reports',
-        icon: FileText
+        icon: FileText,
+        requiredRoles: ['admin', 'manager', 'inventory_manager'],
       }
     ]
   },

@@ -17,8 +17,7 @@
  */
 
 import React from 'react';
-import Sidebar from './Sidebar2';
-import Header from './Header2';
+import Sidebar from './Sidebar';
 
 // TIPOS
 interface MainLayoutProps {
@@ -86,12 +85,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         w-full
         overflow-hidden
       ">
-        {/* 
-          HEADER
-          - Sticky: siempre visible
-          - z-30: sobre contenido, bajo sidebar móvil
-        */}
-        <Header />
+        
         
         {/* 
           CONTENIDO

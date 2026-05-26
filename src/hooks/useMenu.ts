@@ -17,6 +17,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from "../stores/authStore";
+import { useSidebarStore } from '../stores/sidebarStore';
 import {
   menuItems,
   filterMenuByRoles,
@@ -149,52 +150,6 @@ export const useMenu = (): UseMenuReturn => {
   };
 };
 
-// HOOK AUXILIAR: useSidebarState
+// HOOK - Store de estado del Sidebar
 
-interface UseSidebarStateReturn {
-  isCollapsed: boolean;
-  isMobileMenuOpen: boolean;
-  toggleCollapse: () => void;
-  toggleMobileMenu: () => void;
-  closeMobileMenu: () => void;
-  openMobileMenu: () => void;
-}
-
-/**
- * Hook para manejar el estado del sidebar (colapsado/expandido, móvil abierto/cerrado)
- * 
- * ¿POR QUÉ SEPARAR ESTE HOOK?
- * - useMenu maneja la LÓGICA del menú
- * - useSidebarState maneja el ESTADO del UI del sidebar
- * - Separación de responsabilidades (Single Responsibility Principle)
- * - Puedes usar uno sin el otro si es necesario
- */
-export const useSidebarState = (): UseSidebarStateReturn => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  const toggleCollapse = useCallback(()=> {
-    setIsCollapsed(prev => !prev);
-  }, []);
-
-  const toggleMobileMenu = useCallback(()=> {
-    setIsMobileMenuOpen(prev => !prev);
-  }, []);
-
-  const closeMobileMenu = useCallback(() => {
-    setIsMobileMenuOpen(false);
-  }, []);
-  
-  const openMobileMenu = useCallback(() => {
-    setIsMobileMenuOpen(true);
-  }, []);
-    
-  return {
-    isCollapsed,
-    isMobileMenuOpen,
-    toggleCollapse,
-    toggleMobileMenu,
-    closeMobileMenu,
-    openMobileMenu
-  };
-};
+export const useSidebarState = () => useSidebarStore();
