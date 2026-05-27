@@ -8,22 +8,38 @@
  *
  * MIGRACIÓN FUTURA: reemplazar parseExcel() por fetchFromAPI()
  *
- * COLUMNAS DEL EXCEL V2 (índices 0-21):
+ * COLUMNAS Vista_Resumen (índices 0-27):
  *   0  Fecha factura        1  Nro factura          2  Cliente
  *   3  Fecha OT             4  Nro OT               5  Total bruto factura
  *   6  Concepto impositivo  7  Total factura (neto)  8  Gastos logísticos
  *   9  % Gastos log        10  Fecha remito         11  Nro remito
- *  12  Fecha consumo       13  Nro consumo          14  Precio (costo PPP)
- *  15  Estado valorización 16  Descripción          17  Fecha NC
- *  18  Nro NC              19  Total bruto NC       20  Contr. marginal
- *  21  % margen
+ *  12  Paciente            13  Institución          14  Técnico
+ *  15  Médico              16  Médico proctor       17  Sucursal
+ *  18  Fecha consumo       19  Nro consumo          20  Precio (costo PPP)
+ *  21  Estado valorización 22  Descripción          23  Fecha NC
+ *  24  Nro NC              25  Total bruto NC       26  Contr. marginal
+ *  27  % margen
+ *
+ * COLUMNAS Vista_Detallada (índices 0-16):
+ *   0  Fecha factura              1  Nro factura
+ *   2  Nro ot                     3  Otoperacionitemid
+ *   4  Fecha remito               5  Nro remito
+ *   6  Prod. base comercial       7  Cantidad base comercial
+ *   8  Importe - neto iva         9  Operacionitemid doc. material
+ *  10  Producto material util.   11  Cantidad material utilizado
+ *  12  Nro consumo               13  Producto consumo
+ *  14  Costo unitario            15  % part. s/total consumo
+ *  16  % participacion s/venta neta iva
+ *
+ * JOIN: Vista_Resumen.nroConsumo (col 19) === Vista_Detallada.nroConsumo (col 12)
  *
  * NOTAS DE NEGOCIO:
  *   - % margen calculado sobre bruto (col 5)
  *   - CM ya tiene gastos logísticos descontados (no restar de nuevo)
- *   - Filas con Nro NC (col 18) se excluyen del dashboard
+ *   - Filas con Nro NC (col 24) se excluyen del dashboard
  *   - Las fechas vienen como datetime objects (no número de serie Excel)
  *   - Toggle IVA preparado para sprint siguiente
+ *   - 54 OTs de Vista_Resumen sin detalle en Vista_Detallada es comportamiento esperado
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
@@ -69,6 +85,10 @@ import {
   CalendarDays,
   EyeOff,
 } from 'lucide-react'
+import OTDetalleModal, {
+  type ConsumoDetalleMap,
+  type OTModalRow,
+} from './OTDetalleModal'
 
 // ============================================================
 // TIPOS
@@ -80,32 +100,30 @@ interface RawRow {
   cliente: string
   fechaOt: Date | null
   nroOt: string
-  totalBrutoFactura: number   // col 5  — base de cálculo % margen
-  conceptoImpositivo: number  // col 6  — IVA
-  totalFacturaNeto: number    // col 7  — bruto + IVA
-  gastosLogisticos: number    // col 8
-  pctGastosLog: number        // col 9
-  fechaRemito: Date | null    // col 10
-  nroRemito: string           // col 11
-  // ── Campos clínicos / operativos (V3) ──
-  paciente: string            // col 12
-  institucion: string         // col 13
-  tecnico: string             // col 14
-  medico: string              // col 15
-  medicoProctor: string       // col 16
-  sucursal: string            // col 17
-  // ── Continuación (corridas +6 desde V2) ──
-  fechaConsumo: Date | null   // col 18
-  nroConsumo: number | null   // col 19
-  precio: number              // col 20 — costo PPP
-  estadoValorizacion: string  // col 21
-  descripcion: string         // col 22
-  fechaNc: Date | null        // col 23
-  nroNc: string               // col 24
-  totalBrutoNc: number        // col 25
-  contribMarginal: number     // col 26 — ya incluye descuento de gastos log
-  pctMargen: number           // col 27
-  mesAnio: string             // derivado — "MM/YYYY"
+  totalBrutoFactura: number
+  conceptoImpositivo: number
+  totalFacturaNeto: number
+  gastosLogisticos: number
+  pctGastosLog: number
+  fechaRemito: Date | null
+  nroRemito: string
+  paciente: string
+  institucion: string
+  tecnico: string
+  medico: string
+  medicoProctor: string
+  sucursal: string
+  fechaConsumo: Date | null
+  nroConsumo: number | null
+  precio: number
+  estadoValorizacion: string
+  descripcion: string
+  fechaNc: Date | null
+  nroNc: string
+  totalBrutoNc: number
+  contribMarginal: number
+  pctMargen: number
+  mesAnio: string
 }
 
 interface ClienteSummary {
@@ -128,6 +146,26 @@ interface OtSummary {
   cm: number
   pct: number
 }
+
+interface ConsumoDetalleRow {
+  nroConsumo: number
+  nroOt: string
+  nroFactura: string
+  otOperacionItemId: number | null
+  fechaRemito: Date | null
+  nroRemito: string
+  productoVendido: string
+  cantidadBaseComercial: number
+  importeNetoIva: number
+  operacionItemIdMaterial: number | null
+  productoMaterialUtilizado: string
+  cantidadMaterialUtilizado: number
+  productoConsumo: string
+  costoUnitario: number
+  pctPartConsumo: number
+  pctPartVentaNeta: number
+}
+type ConsumoDetalleMapLocal = Map<number, ConsumoDetalleRow[]>
 
 // ============================================================
 // HELPERS
@@ -169,16 +207,66 @@ const parseDate = (val: unknown): Date | null => {
 }
 
 // ============================================================
-// PARSE EXCEL
+// PARSE CONSUMO DETALLE (Vista_Detallada — hoja 2)
 // ============================================================
 
-function parseExcel(file: File): Promise<RawRow[]> {
+function parseConsumoDetalle(wb: XLSX.WorkBook): ConsumoDetalleMapLocal {
+  const map: ConsumoDetalleMapLocal = new Map()
+
+  const sheetName =
+    wb.SheetNames.find(n => /vista.?detallada|detallada|detalle/i.test(n))
+    ?? wb.SheetNames[1]
+
+  if (!sheetName) return map
+
+  const rawData: unknown[][] = XLSX.utils.sheet_to_json(
+    wb.Sheets[sheetName],
+    { header: 1, raw: true }
+  )
+
+  rawData.slice(1).forEach((r: unknown[]) => {
+    const nroConsumo = r[12] ? Number(r[12]) : null
+    if (!nroConsumo) return
+
+    const row: ConsumoDetalleRow = {
+      nroConsumo,
+      nroOt:                     String(r[2]  ?? '').trim(),
+      nroFactura:                String(r[1]  ?? '').trim(),
+      otOperacionItemId:         r[3]  ? Number(r[3])  : null,
+      fechaRemito:               parseDate(r[4]),
+      nroRemito:                 String(r[5]  ?? '').trim(),
+      productoVendido:           String(r[6]  ?? '').trim(),
+      cantidadBaseComercial:     Number(r[7]  ?? 1),
+      importeNetoIva:            Number(r[8]  ?? 0),
+      operacionItemIdMaterial:   r[9]  ? Number(r[9])  : null,
+      productoMaterialUtilizado: String(r[10] ?? '').trim(),
+      cantidadMaterialUtilizado: Number(r[11] ?? 1),
+      productoConsumo:           String(r[13] ?? '').trim(),
+      costoUnitario:             Number(r[14] ?? 0),
+      pctPartConsumo:            Number(r[15] ?? 0),
+      pctPartVentaNeta:          Number(r[16] ?? 0),
+    }
+
+    const existing = map.get(nroConsumo) ?? []
+    existing.push(row)
+    map.set(nroConsumo, existing)
+  })
+
+  return map
+}
+
+// ============================================================
+// PARSE EXCEL — ambas hojas
+// ============================================================
+
+function parseExcel(file: File): Promise<{ rows: RawRow[]; consumoDetalle: ConsumoDetalleMapLocal }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target!.result as ArrayBuffer)
         const wb = XLSX.read(data, { type: 'array', cellDates: true })
+
         const rawData: unknown[][] = XLSX.utils.sheet_to_json(
           wb.Sheets[wb.SheetNames[0]],
           { header: 1, raw: true }
@@ -187,44 +275,44 @@ function parseExcel(file: File): Promise<RawRow[]> {
         const rows: RawRow[] = rawData
           .slice(1)
           .filter((r: unknown[]) => r[2])
-          .filter((r: unknown[]) => !r[24] || String(r[24]).trim() === '')        // excluir NC (col 24 en V3)
+          .filter((r: unknown[]) => !r[24] || String(r[24]).trim() === '')
           .map((r: unknown[]) => {
             const fechaFactura = parseDate(r[0])
             return {
               fechaFactura,
-              nroFactura: String(r[1] ?? ''),
-              cliente: String(r[2] ?? ''),
-              fechaOt: parseDate(r[3]),
-              nroOt: String(r[4] ?? ''),
-              totalBrutoFactura: Number(r[5] ?? 0),
-              conceptoImpositivo: Number(r[6] ?? 0),
-              totalFacturaNeto: Number(r[7] ?? 0),
-              gastosLogisticos: Number(r[8] ?? 0),
-              pctGastosLog: Number(r[9] ?? 0),
-              fechaRemito: parseDate(r[10]),
-              nroRemito: String(r[11] ?? ''),
-              // ── Campos clínicos V3 ──
-              paciente: String(r[12] ?? '').trim(),
-              institucion: String(r[13] ?? '').trim(),
-              tecnico: String(r[14] ?? '').trim(),
-              medico: String(r[15] ?? '').trim(),
-              medicoProctor: String(r[16] ?? '').trim(),
-              sucursal: String(r[17] ?? '').trim(),
-              // ── Continuación corrida +6 ──
-              fechaConsumo: parseDate(r[18]),
-              nroConsumo: r[19] ? Number(r[19]) : null,
-              precio: Number(r[20] ?? 0),
-              estadoValorizacion: String(r[21] ?? ''),
-              descripcion: String(r[22] ?? ''),
-              fechaNc: parseDate(r[23]),
-              nroNc: String(r[24] ?? ''),
-              totalBrutoNc: Number(r[25] ?? 0),
-              contribMarginal: Number(r[26] ?? 0),
-              pctMargen: Number(r[27] ?? 0),
-              mesAnio: toMesAnio(fechaFactura),
+              nroFactura:           String(r[1]  ?? ''),
+              cliente:              String(r[2]  ?? ''),
+              fechaOt:              parseDate(r[3]),
+              nroOt:                String(r[4]  ?? ''),
+              totalBrutoFactura:    Number(r[5]  ?? 0),
+              conceptoImpositivo:   Number(r[6]  ?? 0),
+              totalFacturaNeto:     Number(r[7]  ?? 0),
+              gastosLogisticos:     Number(r[8]  ?? 0),
+              pctGastosLog:         Number(r[9]  ?? 0),
+              fechaRemito:          parseDate(r[10]),
+              nroRemito:            String(r[11] ?? ''),
+              paciente:             String(r[12] ?? '').trim(),
+              institucion:          String(r[13] ?? '').trim(),
+              tecnico:              String(r[14] ?? '').trim(),
+              medico:               String(r[15] ?? '').trim(),
+              medicoProctor:        String(r[16] ?? '').trim(),
+              sucursal:             String(r[17] ?? '').trim(),
+              fechaConsumo:         parseDate(r[18]),
+              nroConsumo:           r[19] ? Number(r[19]) : null,
+              precio:               Number(r[20] ?? 0),
+              estadoValorizacion:   String(r[21] ?? ''),
+              descripcion:          String(r[22] ?? ''),
+              fechaNc:              parseDate(r[23]),
+              nroNc:                String(r[24] ?? ''),
+              totalBrutoNc:         Number(r[25] ?? 0),
+              contribMarginal:      Number(r[26] ?? 0),
+              pctMargen:            Number(r[27] ?? 0),
+              mesAnio:              toMesAnio(fechaFactura),
             }
           })
-        resolve(rows)
+
+        const consumoDetalle = parseConsumoDetalle(wb)
+        resolve({ rows, consumoDetalle })
       } catch (err) {
         reject(err)
       }
@@ -238,7 +326,6 @@ function parseExcel(file: File): Promise<RawRow[]> {
 // BUILD OT RANKINGS
 // ============================================================
 
-/** Devuelve top N mejores y peores OTs por % margen (excluyendo 100%) */
 function buildOtRankings(rows: RawRow[], n = 5): { best: OtSummary[]; worst: OtSummary[] } {
   const ots: OtSummary[] = rows
     .filter((r) => r.nroOt && r.totalBrutoFactura > 0 && r.pctMargen < 99.9)
@@ -257,7 +344,6 @@ function buildOtRankings(rows: RawRow[], n = 5): { best: OtSummary[]; worst: OtS
   }
 }
 
-/** Mapea cliente → top 3 OTs por rentabilidad (sin 100%) para tooltips */
 function buildClienteOtMap(rows: RawRow[]): Map<string, OtSummary[]> {
   const map = new Map<string, OtSummary[]>()
   for (const r of rows) {
@@ -266,7 +352,6 @@ function buildClienteOtMap(rows: RawRow[]): Map<string, OtSummary[]> {
     existing.push({ nroOt: r.nroOt, cliente: r.cliente, bruto: r.totalBrutoFactura, cm: r.contribMarginal, pct: r.pctMargen })
     map.set(r.cliente, existing)
   }
-  // Ordenar y quedarse con top 3 por cliente
   map.forEach((ots, key) => {
     map.set(key, [...ots].sort((a, b) => b.pct - a.pct).slice(0, 3))
   })
@@ -387,7 +472,7 @@ const UploadZone: React.FC<{ onFile: (f: File) => void; loading: boolean }> = ({
             <div className="text-center">
               <p className="text-lg font-semibold text-gray-800">Cargar Excel de Contribución Marginal</p>
               <p className="text-sm text-gray-500 mt-1">Arrastrá el archivo acá o hacé click para seleccionarlo</p>
-              <p className="text-xs text-gray-400 mt-2">.xlsx o .xls</p>
+              <p className="text-xs text-gray-400 mt-2">.xlsx o .xls — requiere hojas Vista_Resumen y Vista_Detallada</p>
             </div>
           </>
         )}
@@ -430,19 +515,10 @@ const KpiCard: React.FC<{
 // CUSTOM Y-AXIS TICK
 // ============================================================
 
-/**
- * Muestra el nombre del cliente en el eje Y.
- * Estrategia: mostrar la primera palabra significativa en línea 1,
- * y las siguientes 2-3 palabras en línea 2 (hasta 20 chars).
- * Así "INSTITUTO NACIONAL..." e "INSTITUTO DE OBRA..." se distinguen
- * porque la línea 2 muestra "NACIONAL..." vs "DE OBRA..."
- */
 const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
   const name = (payload?.value ?? '').replace(/"+/g, '').trim()
   const words = name.split(' ').filter(Boolean)
 
-  // Calcular el punto de corte: línea 1 tiene las primeras palabras
-  // hasta llegar a ~18 chars, línea 2 las siguientes (hasta 20 chars)
   let line1 = ''
   let splitIndex = 0
   for (let i = 0; i < words.length; i++) {
@@ -454,7 +530,6 @@ const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: 
       break
     }
   }
-  // Si el nombre cabe entero en una línea
   if (splitIndex >= words.length) {
     return (
       <g transform={`translate(${x},${y})`}>
@@ -465,7 +540,6 @@ const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: 
       </g>
     )
   }
-  // Línea 2: palabras restantes, truncadas a 20 chars
   let line2 = words.slice(splitIndex).join(' ')
   if (line2.length > 20) line2 = line2.substring(0, 19) + '…'
 
@@ -483,7 +557,7 @@ const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: 
 }
 
 // ============================================================
-// CUSTOM TOOLTIP — bar chart CM con Top 3 OTs del cliente
+// CUSTOM TOOLTIP
 // ============================================================
 
 const CmBarTooltip: React.FC<{
@@ -540,8 +614,7 @@ const CmBarTooltip: React.FC<{
 }
 
 // ============================================================
-// COMPOSICION DONUT — anillo base (venta bruta) con arcos
-// superpuestos de costos y gastos logísticos al mismo radio
+// COMPOSICION DONUT
 // ============================================================
 
 interface DonutSlice { name: string; value: number; pct: number; fill: string }
@@ -550,17 +623,13 @@ const LABEL_OFFSET = 18
 const INNER_R = 55
 const OUTER_R = 90
 
-/**
- * Renderiza una etiqueta de porcentaje fuera del arco,
- * con una línea de referencia y el texto del %.
- */
 const DonutLabel = ({
   cx, cy, midAngle, outerRadius, pct, fill, name,
 }: {
   cx: number; cy: number; midAngle: number
   outerRadius: number; pct: number; fill: string; name: string
 }) => {
-  if (pct < 0.5) return null // no mostrar si es insignificante
+  if (pct < 0.5) return null
   const RADIAN = Math.PI / 180
   const sin = Math.sin(-RADIAN * midAngle)
   const cos = Math.cos(-RADIAN * midAngle)
@@ -593,18 +662,15 @@ const ComposicionDonut: React.FC<{ data: DonutSlice[] }> = ({ data }) => {
   const costosPct = data[1]?.pct ?? 0
   const gastosPct = data[2]?.pct ?? 0
 
-  // Un único anillo con 3 segmentos que suman exactamente 100%
-  // CM (verde) + Costos (índigo) + Gastos Log (ámbar) = 100%
   const pieData = [
     { name: data[0]?.name ?? 'Contr. Marginal', value: marginPct,  fill: data[0]?.fill ?? '#059669', pct: marginPct },
     { name: data[1]?.name ?? 'Costos',          value: costosPct,  fill: data[1]?.fill ?? '#6366f1', pct: costosPct },
     { name: data[2]?.name ?? 'Gastos Log.',      value: gastosPct,  fill: data[2]?.fill ?? '#f59e0b', pct: gastosPct },
-  ].filter(d => d.value > 0)  // excluir segmentos vacíos (ej: gastos = 0)
+  ].filter(d => d.value > 0)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderLabel = (props: any) => {
     const d = pieData[props.index]
-    // Solo mostrar etiqueta en Costos y Gastos, no en el segmento verde
     if (!d || props.index === 0 || d.pct < 0.3) return null
     return (
       <DonutLabel
@@ -641,8 +707,6 @@ const ComposicionDonut: React.FC<{ data: DonutSlice[] }> = ({ data }) => {
             <Cell key={i} fill={entry.fill} opacity={0.92} />
           ))}
         </Pie>
-
-        {/* Texto central — % de margen dinámico */}
         <text x="50%" y="44%" textAnchor="middle" dominantBaseline="central"
           fill="#059669" fontSize={15} fontWeight={700}>
           {`${marginPct.toFixed(1)}%`}
@@ -668,8 +732,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'resumen' | 'detalle'>('resumen')
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
   const [selectedMes, setSelectedMes] = useState<string>('todos')
-
-  // Toggle del gráfico: 'cm' = Top 10 por CM | 'rankings' = Top 5 mejor/peor
+  const [consumoDetalle, setConsumoDetalle] = useState<ConsumoDetalleMap>(new Map())
   const [chartMode, setChartMode] = useState<'cm' | 'rankings'>('cm')
   const [sorting, setSorting] = useState<SortingState>([{ id: 'contribMarginal', desc: true }])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -680,20 +743,22 @@ const ContribucionMarginalDashboard: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const parsed = await parseExcel(file)
-      setRows(parsed)
+      const { rows: parsedRows, consumoDetalle: parsedDetalle } = await parseExcel(file)
+      if (parsedRows.length === 0) {
+        setError('El archivo no contiene datos válidos. Verificá que sea el Excel correcto.')
+        return
+      }
+      setRows(parsedRows)
+      setConsumoDetalle(parsedDetalle as ConsumoDetalleMap)
       setFileName(file.name)
-      setSelectedMes('todos')
-      setSelectedCliente(null)
     } catch (e) {
-      setError('Error al procesar el archivo. Verificá que sea el formato correcto.')
+      setError('No se pudo leer el archivo. Verificá el formato.')
       console.error(e)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Meses disponibles ordenados cronológicamente
   const mesesDisponibles = useMemo(() => {
     const set = new Set<string>()
     rows.forEach((r) => { if (r.mesAnio) set.add(r.mesAnio) })
@@ -704,7 +769,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
     })
   }, [rows])
 
-  // Filas filtradas por mes seleccionado
   const rowsFiltradas = useMemo(() =>
     selectedMes === 'todos' ? rows : rows.filter((r) => r.mesAnio === selectedMes),
     [rows, selectedMes]
@@ -737,10 +801,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
   const otRankings = useMemo(() => buildOtRankings(rowsFiltradas), [rowsFiltradas])
   const clienteOtMap = useMemo(() => buildClienteOtMap(rowsFiltradas), [rowsFiltradas])
 
-
-  // Donut — [0] Margen/CM (verde, base), [1] Costos, [2] Gastos Log
-  // El anillo verde representa la CM como % del bruto (ej: 82.1%)
-  // Los arcos de costos y gastos se superponen sobre ese anillo
   const radialData = useMemo(() => {
     const total = kpis.ventaBruta || 1
     return [
@@ -834,7 +894,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
     getPaginationRowModel: getPaginationRowModel(),
   })
 
-  // ── Sin datos ───────────────────────────────────────────
   if (rows.length === 0) {
     return (
       <div className="p-6">
@@ -852,7 +911,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
     )
   }
 
-  // ── Dashboard ───────────────────────────────────────────
   return (
     <div className="p-6 space-y-6 min-h-screen bg-slate-200">
 
@@ -866,7 +924,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Toggle IVA — preparado para sprint siguiente */}
           <button
             disabled
             title="Vista con/sin IVA — próximamente"
@@ -916,7 +973,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* KPI Cards — orden: Venta Bruta | Costos | Gastos Log | Margen */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Venta Bruta"
@@ -956,11 +1013,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
-        {/* Bar chart — toggle CM / Rankings */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-slate-300 p-5 shadow-md">
-
-          {/* Header con toggle */}
           <div className="flex items-start justify-between mb-4 gap-2 flex-wrap">
             <div>
               <h2 className="text-sm font-semibold text-gray-700">
@@ -979,7 +1032,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
                   ✕ Limpiar filtro
                 </button>
               )}
-              {/* Toggle */}
               <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
                 <button
                   onClick={() => setChartMode('cm')}
@@ -997,17 +1049,13 @@ const ContribucionMarginalDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* MODO CM: Top 10 por Contribución Marginal */}
           {chartMode === 'cm' && (
             <ResponsiveContainer width="100%" height={380}>
               <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 50, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                 <XAxis type="number" tickFormatter={fmtShort} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" width={185} tick={<CustomYAxisTick />} axisLine={false} tickLine={false} />
-                <Tooltip
-                  content={<CmBarTooltip clienteOtMap={clienteOtMap} />}
-                  cursor={{ fill: 'rgba(16,185,129,0.06)' }}
-                />
+                <Tooltip content={<CmBarTooltip clienteOtMap={clienteOtMap} />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
                 <Bar
                   dataKey="cm"
                   radius={[0, 4, 4, 0]}
@@ -1036,11 +1084,8 @@ const ContribucionMarginalDashboard: React.FC = () => {
             </ResponsiveContainer>
           )}
 
-          {/* MODO RANKINGS: Top 5 mejor / Top 5 peor */}
           {chartMode === 'rankings' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-
-              {/* TOP 5 MEJORES */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -1063,8 +1108,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
                   ))}
                 </div>
               </div>
-
-              {/* TOP 5 PEORES */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full bg-red-400" />
@@ -1087,12 +1130,10 @@ const ContribucionMarginalDashboard: React.FC = () => {
                   ))}
                 </div>
               </div>
-
             </div>
           )}
         </div>
 
-        {/* Donut chart — composición superpuesta sobre venta bruta */}
         <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-md flex flex-col">
           <div className="mb-2">
             <h2 className="text-sm font-semibold text-gray-700">Composición de la Venta Bruta</h2>
@@ -1101,7 +1142,6 @@ const ContribucionMarginalDashboard: React.FC = () => {
           <div className="flex-1 flex items-center justify-center">
             <ComposicionDonut data={radialData} />
           </div>
-          {/* Leyenda con valores absolutos */}
           <div className="space-y-2 mt-3 border-t border-gray-100 pt-3">
             {radialData.map((d) => (
               <div key={d.name} className="flex items-center justify-between text-xs">
@@ -1202,7 +1242,12 @@ const ContribucionMarginalDashboard: React.FC = () => {
             </div>
           </div>
         ) : (
-          <DetalleTab rows={rowsFiltradas} selectedCliente={selectedCliente} onClearCliente={() => setSelectedCliente(null)} />
+          <DetalleTab
+            rows={rowsFiltradas}
+            selectedCliente={selectedCliente}
+            onClearCliente={() => setSelectedCliente(null)}
+            consumoDetalle={consumoDetalle}
+          />
         )}
       </div>
     </div>
@@ -1210,7 +1255,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
 }
 
 // ============================================================
-// EXPAND ROW — datos clínicos/operativos expandibles
+// EXPAND ROW
 // ============================================================
 
 const campo = (valor: string) => valor.trim() || '—'
@@ -1219,8 +1264,6 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
   <tr className="bg-gradient-to-r from-slate-50 to-blue-50/30">
     <td colSpan={colSpan} className="px-4 py-3">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
-
-        {/* Paciente */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
@@ -1229,13 +1272,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Paciente</p>
-            <p className={`text-xs font-medium truncate ${row.paciente ? 'text-gray-700' : 'text-gray-300'}`}>
-              {campo(row.paciente)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.paciente ? 'text-gray-700' : 'text-gray-300'}`}>{campo(row.paciente)}</p>
           </div>
         </div>
-
-        {/* Institución */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round">
@@ -1244,14 +1283,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Institución</p>
-            <p className={`text-xs font-medium truncate ${row.institucion ? 'text-gray-700' : 'text-gray-300'}`}
-               title={row.institucion || undefined}>
-              {campo(row.institucion)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.institucion ? 'text-gray-700' : 'text-gray-300'}`} title={row.institucion || undefined}>{campo(row.institucion)}</p>
           </div>
         </div>
-
-        {/* Sucursal */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-violet-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round">
@@ -1260,13 +1294,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Sucursal</p>
-            <p className={`text-xs font-medium truncate ${row.sucursal ? 'text-gray-700' : 'text-gray-300'}`}>
-              {campo(row.sucursal)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.sucursal ? 'text-gray-700' : 'text-gray-300'}`}>{campo(row.sucursal)}</p>
           </div>
         </div>
-
-        {/* Médico */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-cyan-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2" strokeLinecap="round">
@@ -1275,13 +1305,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Médico</p>
-            <p className={`text-xs font-medium truncate ${row.medico ? 'text-gray-700' : 'text-gray-300'}`}>
-              {campo(row.medico)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.medico ? 'text-gray-700' : 'text-gray-300'}`}>{campo(row.medico)}</p>
           </div>
         </div>
-
-        {/* Médico Proctor */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-indigo-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round">
@@ -1291,13 +1317,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Médico Proctor</p>
-            <p className={`text-xs font-medium truncate ${row.medicoProctor ? 'text-gray-700' : 'text-gray-300'}`}>
-              {campo(row.medicoProctor)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.medicoProctor ? 'text-gray-700' : 'text-gray-300'}`}>{campo(row.medicoProctor)}</p>
           </div>
         </div>
-
-        {/* Técnico */}
         <div className="flex items-start gap-2">
           <div className="mt-0.5 w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round">
@@ -1306,12 +1328,9 @@ const ExpandRow: React.FC<{ row: RawRow; colSpan: number }> = ({ row, colSpan })
           </div>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Técnico</p>
-            <p className={`text-xs font-medium truncate ${row.tecnico ? 'text-gray-700' : 'text-gray-300'}`}>
-              {campo(row.tecnico)}
-            </p>
+            <p className={`text-xs font-medium truncate ${row.tecnico ? 'text-gray-700' : 'text-gray-300'}`}>{campo(row.tecnico)}</p>
           </div>
         </div>
-
       </div>
     </td>
   </tr>
@@ -1325,11 +1344,13 @@ const DetalleTab: React.FC<{
   rows: RawRow[]
   selectedCliente: string | null
   onClearCliente: () => void
-}> = ({ rows, selectedCliente, onClearCliente }) => {
+  consumoDetalle: ConsumoDetalleMap
+}> = ({ rows, selectedCliente, onClearCliente, consumoDetalle }) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 15 })
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [otModal, setOtModal] = useState<OTModalRow | null>(null)
 
   const toggleRow = (id: string) => {
     setExpandedRows((prev) => {
@@ -1341,7 +1362,7 @@ const DetalleTab: React.FC<{
 
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
-    setExpandedRows(new Set()) // colapsar al cambiar filtro
+    setExpandedRows(new Set())
   }, [selectedCliente])
 
   const filteredRows = useMemo(() =>
@@ -1349,7 +1370,7 @@ const DetalleTab: React.FC<{
     [rows, selectedCliente]
   )
 
-  const TOTAL_COLS = 10 // columnas visibles + col expand
+  const TOTAL_COLS = 11 // +1 por la nueva col de OT clickeable separada del expand
 
   const columns = useMemo<ColumnDef<RawRow>[]>(() => [
     {
@@ -1374,7 +1395,41 @@ const DetalleTab: React.FC<{
     {
       accessorKey: 'nroOt',
       header: 'N° OT',
-      cell: ({ getValue }) => <span className="font-mono text-xs text-gray-600">{getValue() as string || '—'}</span>,
+      // ── CAMBIO 8: click en Nro OT abre el modal de detalle ──
+      cell: ({ row }) => {
+        const ot = row.original
+        return (
+          <button
+            onClick={() => setOtModal({
+              nroOt:              ot.nroOt,
+              cliente:            ot.cliente,
+              nroFactura:         ot.nroFactura,
+              fechaFactura:       ot.fechaFactura,
+              fechaOt:            ot.fechaOt,
+              nroRemito:          ot.nroRemito,
+              fechaRemito:        ot.fechaRemito,
+              nroConsumo:         ot.nroConsumo,
+              totalBrutoFactura:  ot.totalBrutoFactura,
+              totalFacturaNeto:   ot.totalFacturaNeto,
+              precio:             ot.precio,
+              gastosLogisticos:   ot.gastosLogisticos,
+              contribMarginal:    ot.contribMarginal,
+              pctMargen:          ot.pctMargen,
+              estadoValorizacion: ot.estadoValorizacion,
+              descripcion:        ot.descripcion,
+              paciente:           ot.paciente,
+              institucion:        ot.institucion,
+              tecnico:            ot.tecnico,
+              medico:             ot.medico,
+              sucursal:           ot.sucursal,
+            })}
+            className="font-mono text-xs text-emerald-700 hover:text-emerald-900 hover:underline underline-offset-2 cursor-pointer transition-colors"
+            title="Click para ver detalle de la OT"
+          >
+            {ot.nroOt || '—'}
+          </button>
+        )
+      },
       size: 110,
     },
     {
@@ -1442,7 +1497,7 @@ const DetalleTab: React.FC<{
       },
       size: 100,
     },
-  ], [])
+  ], [expandedRows])
 
   const table = useReactTable({
     data: filteredRows,
@@ -1541,8 +1596,18 @@ const DetalleTab: React.FC<{
             className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
             <ChevronRight size={16} />
           </button>
+
         </div>
       </div>
+
+      {/* ── Modal de detalle OT ── */}
+      {otModal && (
+        <OTDetalleModal
+          row={otModal}
+          consumoDetalle={consumoDetalle}
+          onClose={() => setOtModal(null)}
+        />
+      )}
     </div>
   )
 }
