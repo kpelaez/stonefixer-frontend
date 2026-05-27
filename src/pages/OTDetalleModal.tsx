@@ -42,7 +42,7 @@ import {
   Truck,
   TrendingUp,
   Package,
-  DollarSign,
+  ShoppingCart,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -332,7 +332,8 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, consumoDetalle, on
   const totalCostoConsumo = productos.reduce((s, p) => s + p.costoUnitario, 0)
 
   // Importe neto IVA del primer producto (es el mismo para toda la OT)
-  const importeNetoIva = productos[0]?.importeNetoIva ?? row.totalFacturaNeto
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const ventaNetaDisplay = productos[0]?.importeNetoIva ?? row.totalFacturaNeto
 
   return (
     <div
@@ -413,12 +414,20 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, consumoDetalle, on
               <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Resumen Financiero</h3>
               <div className="grid grid-cols-2 gap-3">
                 <KpiMini
-                  label="Venta Neta de IVA"
+                  label="Venta Bruta"
                   value={fmtShort(row.totalBrutoFactura)}
                   sub={fmt(row.totalBrutoFactura)}
                   accent="bg-blue-50 border border-blue-100"
                   textColor="text-blue-700"
-                  icon={<DollarSign size={16} className="text-blue-500" />}
+                  icon={<ShoppingCart size={16} className="text-blue-500" />}
+                />
+                <KpiMini
+                  label="Venta Neta (s/IVA)"
+                  value={fmtShort(ventaNetaDisplay)}
+                  sub={fmt(ventaNetaDisplay)}
+                  accent="bg-sky-50 border border-sky-100"
+                  textColor="text-sky-700"
+                  icon={<FileText size={16} className="text-sky-500" />}
                 />
                 <KpiMini
                   label="Costo Productos"
@@ -489,7 +498,7 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, consumoDetalle, on
                   >
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div className="mt-0.5 w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                        <DollarSign size={14} className="text-blue-600" />
+                        <ShoppingCart size={14} className="text-blue-600" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-800 leading-snug">{p.productoVendido}</p>
@@ -497,6 +506,9 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, consumoDetalle, on
                           <span>Cant. comercial: <span className="font-mono font-medium text-gray-700">{p.cantidadBaseComercial}</span></span>
                           <span>Cant. material: <span className="font-mono font-medium text-gray-700">{p.cantidadMaterialUtilizado}</span></span>
                           <span>Remito: <span className="font-mono text-gray-700">{p.nroRemito}</span></span>
+                          {p.otOperacionItemId && (
+                            <span className="text-gray-300">ID: <span className="font-mono">{p.otOperacionItemId}</span></span>
+                          )}
                         </div>
                       </div>
                     </div>
