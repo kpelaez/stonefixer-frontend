@@ -66,6 +66,7 @@ import {
   Cell,
   PieChart,
   Pie,
+  LabelList,
 } from 'recharts'
 import {
   Upload,
@@ -733,7 +734,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
   const [selectedMes, setSelectedMes] = useState<string>('todos')
   const [consumoDetalle, setConsumoDetalle] = useState<ConsumoDetalleMap>(new Map())
-  const [chartMode, setChartMode] = useState<'cm' | 'rankings'>('cm')
+  const [chartMode, setChartMode] = useState<'cm' | 'margen' | 'rankings'>('cm')
   const [sorting, setSorting] = useState<SortingState>([{ id: 'contribMarginal', desc: true }])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -787,16 +788,19 @@ const ContribucionMarginalDashboard: React.FC = () => {
     return { ventaBruta, costos, gastosLog, margen, pctMargen, pctGastos, pctCostos }
   }, [rowsFiltradas])
 
-  const barData = useMemo(() =>
-    summaries.slice(0, 10).map((c) => ({
+  const barData = useMemo(() => {
+    // En modo 'margen': ordenar por % margen desc; en modo 'cm': por CM desc (ya es el orden de summaries)
+    const source = chartMode === 'margen'
+      ? [...summaries].sort((a, b) => b.pctMargen - a.pctMargen)
+      : summaries
+    return source.slice(0, 10).map((c) => ({
       name: c.cliente,
       fullName: c.cliente,
       cm: c.contribMarginal,
       bruto: c.totalBruto,
       pct: c.pctMargen,
-    })),
-    [summaries]
-  )
+    }))
+  }, [summaries, chartMode])
 
   const otRankings = useMemo(() => buildOtRankings(rowsFiltradas), [rowsFiltradas])
   const clienteOtMap = useMemo(() => buildClienteOtMap(rowsFiltradas), [rowsFiltradas])
@@ -976,7 +980,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          label="Venta Bruta"
+          label="Venta Neta"
           value={fmtShort(kpis.ventaBruta)}
           sub={fmt(kpis.ventaBruta)}
           icon={<DollarSign size={18} className="text-emerald-600" />}
@@ -1017,12 +1021,12 @@ const ContribucionMarginalDashboard: React.FC = () => {
           <div className="flex items-start justify-between mb-4 gap-2 flex-wrap">
             <div>
               <h2 className="text-sm font-semibold text-gray-700">
-                {chartMode === 'cm' ? 'Top 10 Clientes por Contribución Marginal' : 'Ranking de Rentabilidad por OT'}
+                {chartMode === 'cm' ? 'Top 10 Clientes por Contribución Marginal' : chartMode === 'margen' ? 'Top 10 Clientes por % de Margen' : 'Ranking de Rentabilidad por OT'}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {chartMode === 'cm'
-                  ? 'Hacé click en una barra para filtrar el detalle'
-                  : 'Top 5 mejores y peores OTs según % de margen (excluye OTs al 100%)'}
+                {chartMode === 'rankings'
+                  ? 'Top 5 mejores y peores OTs según % de margen (excluye OTs al 100%)'
+                  : 'Hacé click en una barra para filtrar el detalle'}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1037,19 +1041,25 @@ const ContribucionMarginalDashboard: React.FC = () => {
                   onClick={() => setChartMode('cm')}
                   className={`px-3 py-1.5 transition-colors ${chartMode === 'cm' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
-                  Top 10 CM
+                  Top CM
+                </button>
+                <button
+                  onClick={() => setChartMode('margen')}
+                  className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${chartMode === 'margen' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  % Margen
                 </button>
                 <button
                   onClick={() => setChartMode('rankings')}
                   className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${chartMode === 'rankings' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
                 >
-                  Rentabilidad OTs
+                  Ranking OTs
                 </button>
               </div>
             </div>
           </div>
 
-          {chartMode === 'cm' && (
+          {(chartMode === 'cm' || chartMode === 'margen') && (
             <ResponsiveContainer width="100%" height={380}>
               <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 50, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
@@ -1079,6 +1089,13 @@ const ContribucionMarginalDashboard: React.FC = () => {
                       }
                     />
                   ))}
+                  <LabelList
+                    dataKey="pct"
+                    position="right"
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(v: any) => `${Number(v).toFixed(1)}%`}
+                    style={{ fontSize: 10, fontWeight: 600, fill: '#6b7280' }}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
