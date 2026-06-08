@@ -57,12 +57,27 @@ const ShiftSchedulePage = () => {
     setStatsError(null);
 
     try {
-      const [statsData, alertsData] = await Promise.all([
+      const [statsResult, alertsResult] = await Promise.allSettled([
         shiftScheduleService.getStats(startDate, endDate),
         shiftScheduleService.getAlerts(),
       ]);
-      setStats(statsData);
-      setAlerts(alertsData.alerts);
+
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+      } else {
+        console.error('Error loading stats:', statsResult.reason);
+        setStatsError('No se pudieron cargar las estadísticas');
+      }
+
+      if (alertsResult.status === 'fulfilled') {
+        setAlerts(alertsResult.value.alerts);
+      } else {
+        // Silencioso — las alertas no son críticas para usuarios regulares
+        console.warn('Alertas no disponibles:', alertsResult.reason);
+        setAlerts([]);
+      }
+
+      setLoadingStats(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al cargar estadísticas';
       console.error('Error loading stats/alerts:', err);
