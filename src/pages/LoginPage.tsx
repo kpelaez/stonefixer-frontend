@@ -1,5 +1,5 @@
 import { useState, FormEvent, useEffect} from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 
 const LoginPage = () => {
@@ -9,6 +9,7 @@ const LoginPage = () => {
         password: '',
     });
     const navigate = useNavigate();
+    const location = useLocation();
     const login = useAuthStore(state => state.login);
     const isLoading = useAuthStore(state => state.isLoading);
     const error = useAuthStore(state => state.error);
@@ -17,9 +18,10 @@ const LoginPage = () => {
     //Redireccionar si ya esta autenticado
     useEffect(()=>{
       if (isAuthenticated) {
-        navigate('/');
+        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+        navigate(from, { replace: true });
       }
-    }, [isAuthenticated, navigate])
+    }, [isAuthenticated, navigate, location]);
 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
