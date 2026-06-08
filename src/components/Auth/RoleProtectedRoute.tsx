@@ -27,10 +27,9 @@ const RoleProtectedRoute = ({children, requiredRoles, redirectTo = '/unauthorize
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    if (roles.length === 0 || !hasAnyRole(requiredRoles)) {
+    if (!hasAnyRole(requiredRoles)) {
         return <Navigate to={redirectTo} state={{ from: location }} replace />;
     }
-
     return <>{children}</>;
 };
 
