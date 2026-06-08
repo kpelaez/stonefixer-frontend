@@ -12,7 +12,6 @@ const RoleProtectedRoute = ({children, requiredRoles, redirectTo = '/unauthorize
     const isAuthenticated = useAuthStore(state => state.isAuthenticated);
     const hasAnyRole = useAuthStore(state => state.hasAnyRole);
     const isLoading = useAuthStore(state => state.isLoading);
-    const roles = useAuthStore((state) => state.roles);
     const location = useLocation();
 
     if (isLoading) {
