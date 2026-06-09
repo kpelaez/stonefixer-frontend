@@ -29,6 +29,8 @@ const ShiftSchedulePage = () => {
     const startDate = format(startOfMonth(month), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(month), 'yyyy-MM-dd');
 
+    console.log('[loadData] Iniciando carga...', { startDate, endDate }); // ← debug
+
     // === Cargar shifts ===
     setLoadingShifts(true);
     setShiftsError(null);
@@ -40,15 +42,20 @@ const ShiftSchedulePage = () => {
       .catch(() => {}); // no crítico, el dialog simplemente no muestra el selector
 
     try {
+
+      console.log('[loadData] Llamando getShiftSchedules...'); // ← debug
       const data = await shiftScheduleService.getShiftSchedules(startDate, endDate);
+      console.log('[loadData] Shifts recibidos:', data.length); // ← debug
       setShifts(data);
     } catch (err) {
       // FIX: antes el error era silencioso (solo console.error).
       // Ahora se muestra en pantalla para que el usuario sepa qué pasó.
+      console.error('[loadData] ERROR en shifts:', err); // ← debug
       const message = err instanceof Error ? err.message : 'Error al cargar los turnos';
       console.error('Error loading shifts:', err);
       setShiftsError(message);
     } finally {
+      console.log('[loadData] finally shifts — seteando loadingShifts=false'); // ← debug
       setLoadingShifts(false);
     }
 
