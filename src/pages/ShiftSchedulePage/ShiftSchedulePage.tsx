@@ -31,15 +31,15 @@ const ShiftSchedulePage = () => {
 
     console.log('[loadData] Iniciando carga...', { startDate, endDate }); // ← debug
 
+    // Cargar lista de usuarios solo si es supervisor (NO bloquea el resto)
+    if (isSupervisor) {
+      inventoryApi.getUsers()
+        .then(data => setUsers(data.map((u: any) => ({ id: u.id, full_name: u.full_name }))))
+        .catch(() => {});
+    }
     // === Cargar shifts ===
     setLoadingShifts(true);
     setShiftsError(null);
-
-    if (!isSupervisor) return; // usuarios normales no necesitan la lista
-    
-    inventoryApi.getUsers()
-      .then(data => setUsers(data.map((u: any) => ({ id: u.id, full_name: u.full_name }))))
-      .catch(() => {}); // no crítico, el dialog simplemente no muestra el selector
 
     try {
 
