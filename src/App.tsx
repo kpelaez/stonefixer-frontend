@@ -45,7 +45,6 @@ import RoleProtectedRoute from './components/Auth/RoleProtectedRoute';
 
 // Nueva pagina modulo agenda stock
 import ShiftSchedulePage from './pages/ShiftSchedulePage/ShiftSchedulePage';
-import DashboardsPage from './pages/DashboardsPage';
 
 import MyOvertimePage from './pages/Overtime/MyOvertimePage';
 import OvertimeManagePage from './pages/Overtime/OvertimeManagePage';
