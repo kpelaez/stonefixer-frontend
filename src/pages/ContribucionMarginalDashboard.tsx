@@ -42,8 +42,9 @@
  *   - 54 OTs de Vista_Resumen sin detalle en Vista_Detallada es comportamiento esperado
  */
 
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import * as XLSX from 'xlsx'
+// import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import React, { useMemo, useEffect , useState } from 'react'
+// import * as XLSX from 'xlsx'
 import {
   useReactTable,
   getCoreRowModel,
@@ -85,47 +86,51 @@ import {
   Truck,
   CalendarDays,
   EyeOff,
+  ArrowLeft,
 } from 'lucide-react'
+import { useExcelData, type RawRow, type ConsumoDetalleMap } from './ExcelDataContext'
+import UploadZone from './UploadZone'
 import OTDetalleModal, {
-  type ConsumoDetalleMap,
+  // type ConsumoDetalleMap,
   type OTModalRow,
 } from './OTDetalleModal'
+import { useNavigate } from 'react-router-dom'
 
 // ============================================================
 // TIPOS
 // ============================================================
 
-interface RawRow {
-  fechaFactura: Date | null
-  nroFactura: string
-  cliente: string
-  fechaOt: Date | null
-  nroOt: string
-  totalBrutoFactura: number
-  conceptoImpositivo: number
-  totalFacturaNeto: number
-  gastosLogisticos: number
-  pctGastosLog: number
-  fechaRemito: Date | null
-  nroRemito: string
-  paciente: string
-  institucion: string
-  tecnico: string
-  medico: string
-  medicoProctor: string
-  sucursal: string
-  fechaConsumo: Date | null
-  nroConsumo: number | null
-  precio: number
-  estadoValorizacion: string
-  descripcion: string
-  fechaNc: Date | null
-  nroNc: string
-  totalBrutoNc: number
-  contribMarginal: number
-  pctMargen: number
-  mesAnio: string
-}
+// interface RawRow {
+//   fechaFactura: Date | null
+//   nroFactura: string
+//   cliente: string
+//   fechaOt: Date | null
+//   nroOt: string
+//   totalBrutoFactura: number
+//   conceptoImpositivo: number
+//   totalFacturaNeto: number
+//   gastosLogisticos: number
+//   pctGastosLog: number
+//   fechaRemito: Date | null
+//   nroRemito: string
+//   paciente: string
+//   institucion: string
+//   tecnico: string
+//   medico: string
+//   medicoProctor: string
+//   sucursal: string
+//   fechaConsumo: Date | null
+//   nroConsumo: number | null
+//   precio: number
+//   estadoValorizacion: string
+//   descripcion: string
+//   fechaNc: Date | null
+//   nroNc: string
+//   totalBrutoNc: number
+//   contribMarginal: number
+//   pctMargen: number
+//   mesAnio: string
+// }
 
 interface ClienteSummary {
   cliente: string
@@ -148,25 +153,25 @@ interface OtSummary {
   pct: number
 }
 
-interface ConsumoDetalleRow {
-  nroConsumo: number
-  nroOt: string
-  nroFactura: string
-  otOperacionItemId: number | null
-  fechaRemito: Date | null
-  nroRemito: string
-  productoVendido: string
-  cantidadBaseComercial: number
-  importeNetoIva: number
-  operacionItemIdMaterial: number | null
-  productoMaterialUtilizado: string
-  cantidadMaterialUtilizado: number
-  productoConsumo: string
-  costoUnitario: number
-  pctPartConsumo: number
-  pctPartVentaNeta: number
-}
-type ConsumoDetalleMapLocal = Map<number, ConsumoDetalleRow[]>
+// interface ConsumoDetalleRow {
+//   nroConsumo: number
+//   nroOt: string
+//   nroFactura: string
+//   otOperacionItemId: number | null
+//   fechaRemito: Date | null
+//   nroRemito: string
+//   productoVendido: string
+//   cantidadBaseComercial: number
+//   importeNetoIva: number
+//   operacionItemIdMaterial: number | null
+//   productoMaterialUtilizado: string
+//   cantidadMaterialUtilizado: number
+//   productoConsumo: string
+//   costoUnitario: number
+//   pctPartConsumo: number
+//   pctPartVentaNeta: number
+// }
+// type ConsumoDetalleMapLocal = Map<number, ConsumoDetalleRow[]>
 
 // ============================================================
 // HELPERS
@@ -194,134 +199,134 @@ const toDateString = (val: Date | number | null): string => {
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const toMesAnio = (date: Date | null): string => {
-  if (!date) return ''
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  return `${m}/${date.getFullYear()}`
-}
+// const toMesAnio = (date: Date | null): string => {
+//   if (!date) return ''
+//   const m = String(date.getMonth() + 1).padStart(2, '0')
+//   return `${m}/${date.getFullYear()}`
+// }
 
-const parseDate = (val: unknown): Date | null => {
-  if (!val) return null
-  if (val instanceof Date) return val
-  if (typeof val === 'number') return new Date((val - 25569) * 86400 * 1000)
-  return null
-}
+// const parseDate = (val: unknown): Date | null => {
+//   if (!val) return null
+//   if (val instanceof Date) return val
+//   if (typeof val === 'number') return new Date((val - 25569) * 86400 * 1000)
+//   return null
+// }
 
 // ============================================================
 // PARSE CONSUMO DETALLE (Vista_Detallada — hoja 2)
 // ============================================================
 
-function parseConsumoDetalle(wb: XLSX.WorkBook): ConsumoDetalleMapLocal {
-  const map: ConsumoDetalleMapLocal = new Map()
+// function parseConsumoDetalle(wb: XLSX.WorkBook): ConsumoDetalleMapLocal {
+//   const map: ConsumoDetalleMapLocal = new Map()
 
-  const sheetName =
-    wb.SheetNames.find(n => /vista.?detallada|detallada|detalle/i.test(n))
-    ?? wb.SheetNames[1]
+//   const sheetName =
+//     wb.SheetNames.find(n => /vista.?detallada|detallada|detalle/i.test(n))
+//     ?? wb.SheetNames[1]
 
-  if (!sheetName) return map
+//   if (!sheetName) return map
 
-  const rawData: unknown[][] = XLSX.utils.sheet_to_json(
-    wb.Sheets[sheetName],
-    { header: 1, raw: true }
-  )
+//   const rawData: unknown[][] = XLSX.utils.sheet_to_json(
+//     wb.Sheets[sheetName],
+//     { header: 1, raw: true }
+//   )
 
-  rawData.slice(1).forEach((r: unknown[]) => {
-    const nroConsumo = r[12] ? Number(r[12]) : null
-    if (!nroConsumo) return
+//   rawData.slice(1).forEach((r: unknown[]) => {
+//     const nroConsumo = r[12] ? Number(r[12]) : null
+//     if (!nroConsumo) return
 
-    const row: ConsumoDetalleRow = {
-      nroConsumo,
-      nroOt:                     String(r[2]  ?? '').trim(),
-      nroFactura:                String(r[1]  ?? '').trim(),
-      otOperacionItemId:         r[3]  ? Number(r[3])  : null,
-      fechaRemito:               parseDate(r[4]),
-      nroRemito:                 String(r[5]  ?? '').trim(),
-      productoVendido:           String(r[6]  ?? '').trim(),
-      cantidadBaseComercial:     Number(r[7]  ?? 1),
-      importeNetoIva:            Number(r[8]  ?? 0),
-      operacionItemIdMaterial:   r[9]  ? Number(r[9])  : null,
-      productoMaterialUtilizado: String(r[10] ?? '').trim(),
-      cantidadMaterialUtilizado: Number(r[11] ?? 1),
-      productoConsumo:           String(r[13] ?? '').trim(),
-      costoUnitario:             Number(r[14] ?? 0),
-      pctPartConsumo:            Number(r[15] ?? 0),
-      pctPartVentaNeta:          Number(r[16] ?? 0),
-    }
+//     const row: ConsumoDetalleRow = {
+//       nroConsumo,
+//       nroOt:                     String(r[2]  ?? '').trim(),
+//       nroFactura:                String(r[1]  ?? '').trim(),
+//       otOperacionItemId:         r[3]  ? Number(r[3])  : null,
+//       fechaRemito:               parseDate(r[4]),
+//       nroRemito:                 String(r[5]  ?? '').trim(),
+//       productoVendido:           String(r[6]  ?? '').trim(),
+//       cantidadBaseComercial:     Number(r[7]  ?? 1),
+//       importeNetoIva:            Number(r[8]  ?? 0),
+//       operacionItemIdMaterial:   r[9]  ? Number(r[9])  : null,
+//       productoMaterialUtilizado: String(r[10] ?? '').trim(),
+//       cantidadMaterialUtilizado: Number(r[11] ?? 1),
+//       productoConsumo:           String(r[13] ?? '').trim(),
+//       costoUnitario:             Number(r[14] ?? 0),
+//       pctPartConsumo:            Number(r[15] ?? 0),
+//       pctPartVentaNeta:          Number(r[16] ?? 0),
+//     }
 
-    const existing = map.get(nroConsumo) ?? []
-    existing.push(row)
-    map.set(nroConsumo, existing)
-  })
+//     const existing = map.get(nroConsumo) ?? []
+//     existing.push(row)
+//     map.set(nroConsumo, existing)
+//   })
 
-  return map
-}
+//   return map
+// }
 
 // ============================================================
 // PARSE EXCEL — ambas hojas
 // ============================================================
 
-function parseExcel(file: File): Promise<{ rows: RawRow[]; consumoDetalle: ConsumoDetalleMapLocal }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target!.result as ArrayBuffer)
-        const wb = XLSX.read(data, { type: 'array', cellDates: true })
+// function parseExcel(file: File): Promise<{ rows: RawRow[]; consumoDetalle: ConsumoDetalleMapLocal }> {
+//   return new Promise((resolve, reject) => {
+//     const reader = new FileReader()
+//     reader.onload = (e) => {
+//       try {
+//         const data = new Uint8Array(e.target!.result as ArrayBuffer)
+//         const wb = XLSX.read(data, { type: 'array', cellDates: true })
 
-        const rawData: unknown[][] = XLSX.utils.sheet_to_json(
-          wb.Sheets[wb.SheetNames[0]],
-          { header: 1, raw: true }
-        )
+//         const rawData: unknown[][] = XLSX.utils.sheet_to_json(
+//           wb.Sheets[wb.SheetNames[0]],
+//           { header: 1, raw: true }
+//         )
 
-        const rows: RawRow[] = rawData
-          .slice(1)
-          .filter((r: unknown[]) => r[2])
-          .filter((r: unknown[]) => !r[24] || String(r[24]).trim() === '')
-          .map((r: unknown[]) => {
-            const fechaFactura = parseDate(r[0])
-            return {
-              fechaFactura,
-              nroFactura:           String(r[1]  ?? ''),
-              cliente:              String(r[2]  ?? ''),
-              fechaOt:              parseDate(r[3]),
-              nroOt:                String(r[4]  ?? ''),
-              totalBrutoFactura:    Number(r[5]  ?? 0),
-              conceptoImpositivo:   Number(r[6]  ?? 0),
-              totalFacturaNeto:     Number(r[7]  ?? 0),
-              gastosLogisticos:     Number(r[8]  ?? 0),
-              pctGastosLog:         Number(r[9]  ?? 0),
-              fechaRemito:          parseDate(r[10]),
-              nroRemito:            String(r[11] ?? ''),
-              paciente:             String(r[12] ?? '').trim(),
-              institucion:          String(r[13] ?? '').trim(),
-              tecnico:              String(r[14] ?? '').trim(),
-              medico:               String(r[15] ?? '').trim(),
-              medicoProctor:        String(r[16] ?? '').trim(),
-              sucursal:             String(r[17] ?? '').trim(),
-              fechaConsumo:         parseDate(r[18]),
-              nroConsumo:           r[19] ? Number(r[19]) : null,
-              precio:               Number(r[20] ?? 0),
-              estadoValorizacion:   String(r[21] ?? ''),
-              descripcion:          String(r[22] ?? ''),
-              fechaNc:              parseDate(r[23]),
-              nroNc:                String(r[24] ?? ''),
-              totalBrutoNc:         Number(r[25] ?? 0),
-              contribMarginal:      Number(r[26] ?? 0),
-              pctMargen:            Number(r[27] ?? 0),
-              mesAnio:              toMesAnio(fechaFactura),
-            }
-          })
+//         const rows: RawRow[] = rawData
+//           .slice(1)
+//           .filter((r: unknown[]) => r[2])
+//           .filter((r: unknown[]) => !r[24] || String(r[24]).trim() === '')
+//           .map((r: unknown[]) => {
+//             const fechaFactura = parseDate(r[0])
+//             return {
+//               fechaFactura,
+//               nroFactura:           String(r[1]  ?? ''),
+//               cliente:              String(r[2]  ?? ''),
+//               fechaOt:              parseDate(r[3]),
+//               nroOt:                String(r[4]  ?? ''),
+//               totalBrutoFactura:    Number(r[5]  ?? 0),
+//               conceptoImpositivo:   Number(r[6]  ?? 0),
+//               totalFacturaNeto:     Number(r[7]  ?? 0),
+//               gastosLogisticos:     Number(r[8]  ?? 0),
+//               pctGastosLog:         Number(r[9]  ?? 0),
+//               fechaRemito:          parseDate(r[10]),
+//               nroRemito:            String(r[11] ?? ''),
+//               paciente:             String(r[12] ?? '').trim(),
+//               institucion:          String(r[13] ?? '').trim(),
+//               tecnico:              String(r[14] ?? '').trim(),
+//               medico:               String(r[15] ?? '').trim(),
+//               medicoProctor:        String(r[16] ?? '').trim(),
+//               sucursal:             String(r[17] ?? '').trim(),
+//               fechaConsumo:         parseDate(r[18]),
+//               nroConsumo:           r[19] ? Number(r[19]) : null,
+//               precio:               Number(r[20] ?? 0),
+//               estadoValorizacion:   String(r[21] ?? ''),
+//               descripcion:          String(r[22] ?? ''),
+//               fechaNc:              parseDate(r[23]),
+//               nroNc:                String(r[24] ?? ''),
+//               totalBrutoNc:         Number(r[25] ?? 0),
+//               contribMarginal:      Number(r[26] ?? 0),
+//               pctMargen:            Number(r[27] ?? 0),
+//               mesAnio:              toMesAnio(fechaFactura),
+//             }
+//           })
 
-        const consumoDetalle = parseConsumoDetalle(wb)
-        resolve({ rows, consumoDetalle })
-      } catch (err) {
-        reject(err)
-      }
-    }
-    reader.onerror = () => reject(new Error('Error leyendo el archivo'))
-    reader.readAsArrayBuffer(file)
-  })
-}
+//         const consumoDetalle = parseConsumoDetalle(wb)
+//         resolve({ rows, consumoDetalle })
+//       } catch (err) {
+//         reject(err)
+//       }
+//     }
+//     reader.onerror = () => reject(new Error('Error leyendo el archivo'))
+//     reader.readAsArrayBuffer(file)
+//   })
+// }
 
 // ============================================================
 // BUILD OT RANKINGS
@@ -437,50 +442,50 @@ const margenBg = (pct: number) => {
 // UPLOAD ZONE
 // ============================================================
 
-const UploadZone: React.FC<{ onFile: (f: File) => void; loading: boolean }> = ({ onFile, loading }) => {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [dragging, setDragging] = useState(false)
+// const UploadZone: React.FC<{ onFile: (f: File) => void; loading: boolean }> = ({ onFile, loading }) => {
+//   const inputRef = useRef<HTMLInputElement>(null)
+//   const [dragging, setDragging] = useState(false)
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) onFile(file)
-  }, [onFile])
+//   const handleDrop = useCallback((e: React.DragEvent) => {
+//     e.preventDefault()
+//     setDragging(false)
+//     const file = e.dataTransfer.files[0]
+//     if (file) onFile(file)
+//   }, [onFile])
 
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-14 flex flex-col items-center gap-5 cursor-pointer transition-all duration-200
-          ${dragging ? 'border-emerald-500 bg-emerald-50 scale-[1.01]' : 'border-gray-300 bg-white hover:border-emerald-400 hover:bg-emerald-50/40'}`}
-      >
-        <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
-          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-        {loading ? (
-          <>
-            <div className="w-14 h-14 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
-            <p className="text-gray-600 font-medium">Procesando archivo...</p>
-          </>
-        ) : (
-          <>
-            <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center">
-              <Upload size={30} className="text-emerald-600" />
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-semibold text-gray-800">Cargar Excel de Contribución Marginal</p>
-              <p className="text-sm text-gray-500 mt-1">Arrastrá el archivo acá o hacé click para seleccionarlo</p>
-              <p className="text-xs text-gray-400 mt-2">.xlsx o .xls — requiere hojas Vista_Resumen y Vista_Detallada</p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
+//   return (
+//     <div className="flex items-center justify-center min-h-[60vh]">
+//       <div
+//         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+//         onDragLeave={() => setDragging(false)}
+//         onDrop={handleDrop}
+//         onClick={() => inputRef.current?.click()}
+//         className={`w-full max-w-lg border-2 border-dashed rounded-2xl p-14 flex flex-col items-center gap-5 cursor-pointer transition-all duration-200
+//           ${dragging ? 'border-emerald-500 bg-emerald-50 scale-[1.01]' : 'border-gray-300 bg-white hover:border-emerald-400 hover:bg-emerald-50/40'}`}
+//       >
+//         <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
+//           onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+//         {loading ? (
+//           <>
+//             <div className="w-14 h-14 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
+//             <p className="text-gray-600 font-medium">Procesando archivo...</p>
+//           </>
+//         ) : (
+//           <>
+//             <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center">
+//               <Upload size={30} className="text-emerald-600" />
+//             </div>
+//             <div className="text-center">
+//               <p className="text-lg font-semibold text-gray-800">Cargar Excel de Contribución Marginal</p>
+//               <p className="text-sm text-gray-500 mt-1">Arrastrá el archivo acá o hacé click para seleccionarlo</p>
+//               <p className="text-xs text-gray-400 mt-2">.xlsx o .xls — requiere hojas Vista_Resumen y Vista_Detallada</p>
+//             </div>
+//           </>
+//         )}
+//       </div>
+//     </div>
+//   )
+// }
 
 // ============================================================
 // KPI CARD
@@ -726,39 +731,45 @@ const ComposicionDonut: React.FC<{ data: DonutSlice[] }> = ({ data }) => {
 // ============================================================
 
 const ContribucionMarginalDashboard: React.FC = () => {
-  const [rows, setRows] = useState<RawRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'resumen' | 'detalle'>('resumen')
+  // const [rows, setRows] = useState<RawRow[]>([])
+  // const [loading, setLoading] = useState(false)
+  // const [error, setError] = useState<string | null>(null)
+  // const [fileName, setFileName] = useState<string>('')
+  // const [activeTab, setActiveTab] = useState<'resumen' | 'detalle'>('resumen')
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
   const [selectedMes, setSelectedMes] = useState<string>('todos')
-  const [consumoDetalle, setConsumoDetalle] = useState<ConsumoDetalleMap>(new Map())
+  // const [consumoDetalle, setConsumoDetalle] = useState<ConsumoDetalleMap>(new Map())
   const [chartMode, setChartMode] = useState<'cm' | 'margen' | 'rankings'>('cm')
   const [sorting, setSorting] = useState<SortingState>([{ id: 'contribMarginal', desc: true }])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
-  const handleFile = useCallback(async (file: File) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const { rows: parsedRows, consumoDetalle: parsedDetalle } = await parseExcel(file)
-      if (parsedRows.length === 0) {
-        setError('El archivo no contiene datos válidos. Verificá que sea el Excel correcto.')
-        return
-      }
-      setRows(parsedRows)
-      setConsumoDetalle(parsedDetalle as ConsumoDetalleMap)
-      setFileName(file.name)
-    } catch (e) {
-      setError('No se pudo leer el archivo. Verificá el formato.')
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { rows, consumoDetalle, fileName, loading, error, loadFile, reset, hasData } = useExcelData()
+  const navigate = useNavigate()
+
+  const [activeTab, setActiveTab] = useState<'resumen' | 'detalle'>('resumen')
+  
+
+  // const handleFile = useCallback(async (file: File) => {
+  //   setLoading(true)
+  //   setError(null)
+  //   try {
+  //     const { rows: parsedRows, consumoDetalle: parsedDetalle } = await parseExcel(file)
+  //     if (parsedRows.length === 0) {
+  //       setError('El archivo no contiene datos válidos. Verificá que sea el Excel correcto.')
+  //       return
+  //     }
+  //     setRows(parsedRows)
+  //     setConsumoDetalle(parsedDetalle as ConsumoDetalleMap)
+  //     setFileName(file.name)
+  //   } catch (e) {
+  //     setError('No se pudo leer el archivo. Verificá el formato.')
+  //     console.error(e)
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }, [])
 
   const mesesDisponibles = useMemo(() => {
     const set = new Set<string>()
@@ -898,22 +909,39 @@ const ContribucionMarginalDashboard: React.FC = () => {
     getPaginationRowModel: getPaginationRowModel(),
   })
 
-  if (rows.length === 0) {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Contribución Marginal por Cliente</h1>
-          <p className="text-gray-500 text-sm mt-1">Cargá el archivo Excel para visualizar el dashboard</p>
-        </div>
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
-            <AlertCircle size={16} /> {error}
-          </div>
-        )}
-        <UploadZone onFile={handleFile} loading={loading} />
+  // if (rows.length === 0) {
+  //   return (
+  //     <div className="p-6">
+  //       <div className="mb-6">
+  //         <h1 className="text-2xl font-bold text-gray-900">Contribución Marginal por Cliente</h1>
+  //         <p className="text-gray-500 text-sm mt-1">Cargá el archivo Excel para visualizar el dashboard</p>
+  //       </div>
+  //       {error && (
+  //         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+  //           <AlertCircle size={16} /> {error}
+  //         </div>
+  //       )}
+  //       <UploadZone onFile={handleFile} loading={loading} />
+  //     </div>
+  //   )
+  // }
+
+  if (!hasData) {
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Contribución Marginal por Cliente</h1>
+        <p className="text-gray-500 text-sm mt-1">Cargá el archivo Excel para visualizar el dashboard</p>
       </div>
-    )
-  }
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+      <UploadZone onFile={loadFile} loading={loading} error={error} />
+    </div>
+  )
+}
 
   return (
     <div className="p-6 space-y-6 min-h-screen bg-slate-200">
@@ -938,9 +966,20 @@ const ContribucionMarginalDashboard: React.FC = () => {
             <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-bold">PRONTO</span>
           </button>
           <button
-            onClick={() => { setRows([]); setFileName('') }}
+            // onClick={() => { setRows([]); setFileName('') }}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
+            <Upload size={15} /> Cambiar archivo
+          </button>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={() => navigate('/dashboards/dash-ppal')}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <ArrowLeft size={15} /> Panel Ejecutivo
+          </button>
+          {/* botón EyeOff / CON IVA queda igual */}
+          <button onClick={reset}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             <Upload size={15} /> Cambiar archivo
           </button>
         </div>

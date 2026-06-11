@@ -13,7 +13,7 @@
  * - Los roles deben coincidir con el sistema de autenticación
  */
 
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Square, SquareKanban } from 'lucide-react';
 import {
     Home,
     BarChart2,
@@ -76,10 +76,8 @@ export const menuItems: MenuItem[] = [
       {
         id: 'business-indicators',
         title: 'Indicadores',
-        path: '/business-indicators',
-        icon: BarChart2,
-        disabled: true,          // ← próximamente, sin funcionalidad aún
-        badge: 'Próximamente',
+        path: '/dashboards/dash-ppal',
+        icon: SquareKanban,      
       },
       {
         id: 'contribucion-marginal',      
