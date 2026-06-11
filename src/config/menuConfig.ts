@@ -13,7 +13,7 @@
  * - Los roles deben coincidir con el sistema de autenticación
  */
 
-import { LucideIcon, Square, SquareKanban } from 'lucide-react';
+import { LucideIcon, SquareKanban } from 'lucide-react';
 import {
     Home,
     BarChart2,
