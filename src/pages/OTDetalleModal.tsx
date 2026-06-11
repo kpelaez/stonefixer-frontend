@@ -427,7 +427,7 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, consumoDetalle, on
                 />
                 <KpiMini
                   label="Gs. Logísticos"
-                  value={row.gastosLogisticos > 0 ? fmtShort(row.gastosLogisticos) : '—'}
+                  value={row.gastosLogisticos > 0 ? fmtShort(row.gastosLogisticos) : '$0'}
                   sub={row.gastosLogisticos > 0 ? fmt(row.gastosLogisticos) : 'Sin gastos'}
                   accent="bg-amber-50 border border-amber-100"
                   textColor={row.gastosLogisticos > 0 ? 'text-amber-700' : 'text-gray-400'}

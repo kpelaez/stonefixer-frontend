@@ -28,6 +28,8 @@ import UsersManagementPage from './pages/Users/UsersManagementPage';
 
 // Página generacion de Contribucion Marginal Dashboard
 import ContribucionMarginalDashboard from './pages/ContribucionMarginalDashboard'
+import { ExcelDataProvider } from './pages/ExcelDataContext'
+import PanelEjecutivoDashboard from './pages/PanelEjecutivoDashboard'
 
 // Agregar al bloque de imports de páginas
 import RemitosReportPage from './pages/Stock/Reports/RemitosReportsPage';
@@ -52,12 +54,20 @@ import { useEffect } from 'react';
 
 
 // ─── Layout wrapper — UNA sola instancia de MainLayout 
+
+const ExcelDashboardsLayout = () => (
+  <ExcelDataProvider>
+    <Outlet />
+  </ExcelDataProvider>
+);
 // Todas las rutas hijas comparten el mismo sidebar y layout.
 const AppLayout = () => (
   <MainLayout>
     <Outlet />
   </MainLayout>
 );
+
+
 
 function App() {
 
@@ -122,14 +132,7 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/dashboards" 
-              element={
-                <RoleProtectedRoute requiredRoles={['admin', 'manager']}>
-                  <DashboardsPage />
-                </RoleProtectedRoute>
-              } 
-            />
+            
 
             <Route 
               path="/teams/stock/schedule" 
@@ -310,14 +313,24 @@ function App() {
               } 
             />
             {/* Ruta de Dashboard Contribucion Marginal */}
-            <Route 
-              path="/dashboards/contribucion-marginal" 
-              element={
-                <ProtectedRoute>
-                  <ContribucionMarginalDashboard />
-                </ProtectedRoute>
-              } 
-            />
+            <Route element={<ExcelDashboardsLayout />}>
+              <Route
+                path="/dashboards/dash-ppal"
+                element={
+                  <RoleProtectedRoute requiredRoles={['admin','manager']}>
+                    <PanelEjecutivoDashboard />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboards/contribucion-marginal"
+                element={
+                  <RoleProtectedRoute requiredRoles={['admin','manager']}>
+                    <ContribucionMarginalDashboard />
+                  </RoleProtectedRoute>
+                }
+              />
+            </Route>
             <Route
               path="/teams/rrhh/dashboards/hr-survey"
               element={
