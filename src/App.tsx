@@ -34,9 +34,12 @@ import PanelEjecutivoDashboard from './pages/PanelEjecutivoDashboard'
 // Agregar al bloque de imports de páginas
 import RemitosReportPage from './pages/Stock/Reports/RemitosReportsPage';
 import HRSurveyDashboardPage from './pages/HrSurveyDashboard/HRSurveyDashboardPage';
+
+// Módulo Inventario de Stock
+import InventarioStockPage from './pages/InventarioStock/InventarioStockPage';
+
 // Toaster
 import { Toaster } from 'react-hot-toast';
-
 
 // Guards
 import ProtectedRoute from './components/Auth/ProtectedRoute';
@@ -155,6 +158,15 @@ function App() {
               element={
                 <RoleProtectedRoute requiredRoles={['admin', 'manager', 'user']}>
                   <RemitosReportPage />
+                </RoleProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/stock/inventario"
+              element={
+                <RoleProtectedRoute requiredRoles={['admin', 'manager']}>
+                  <InventarioStockPage />
                 </RoleProtectedRoute>
               }
             />
