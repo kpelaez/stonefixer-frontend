@@ -21,6 +21,7 @@ const api = axios.create({
   baseURL: import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL ?? ''),
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest' // requerido por el middleware CSRF del backend
   },
   timeout: 15000, // 15 segundos — evita requests colgados silenciosamente
   withCredentials: true,  // <-- agregar esto: envía la cookie en cada request automáticamente
@@ -53,6 +54,10 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (status === 403) {
+      if (import.meta.env.DEV) {
+        const detail = (error.response?.data as { detail?: string })?.detail;
+        console.warn(`[403 Forbidden] ${error.config?.method?.toUpperCase()} ${error.config?.url} — ${detail}`);
+      }
       toast.error('No tenés permisos para realizar esta acción.');
     } else if (status === 404) {
       // 404 es silencioso: los servicios manejan este caso puntualmente
