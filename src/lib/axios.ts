@@ -21,6 +21,7 @@ const api = axios.create({
   baseURL: import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL ?? ''),
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
   timeout: 15000, // 15 segundos — evita requests colgados silenciosamente
   withCredentials: true,  // <-- agregar esto: envía la cookie en cada request automáticamente

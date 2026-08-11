@@ -98,6 +98,9 @@ export const useAuthStore = create<AuthState>((set, get)=>({
     await fetch(`${API_URL}/api/v1/auth/logout`, {
       method: 'POST',
       credentials: 'include',   // <-- también necesario en logout
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     });
 
     set({ token: null, user: null, roles: [], isAuthenticated: false, error: null });
