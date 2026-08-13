@@ -55,3 +55,8 @@ export interface ShiftAlertsResponse {
   alerts: ShiftAlert[];
   count: number;
 }
+
+export interface TeamMember {
+  id: number;
+  full_name: string;
+}
