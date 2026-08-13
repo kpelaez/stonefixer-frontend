@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale';
 import './calendar-styles.css';
 import { ShiftSchedule } from '../../../types/shiftSchedule';
 import ShiftDialog from './ShiftDialog';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface CalendarViewProps {
   shifts: ShiftSchedule[];
@@ -20,7 +21,6 @@ interface CalendarViewProps {
   onShiftUpdated: () => void;
   onShiftDeleted: () => void;
   users?: { id: number; full_name: string }[]; 
-  isSupervisor?: boolean;                       
 }
 
 const CalendarView = ({
@@ -32,12 +32,14 @@ const CalendarView = ({
   onShiftUpdated,
   onShiftDeleted,
   users,
-  isSupervisor,
+  // isSupervisor,
 }: CalendarViewProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<ShiftSchedule | null>(null);
   const calendarRef = useRef<FullCalendar>(null);
+
+  const isSupervisor = useAuthStore(state => state.hasAnyRole(['admin', 'manager']));
 
   // Convertir shifts a eventos de FullCalendar
   const events = shifts.map((shift) => ({
@@ -56,8 +58,7 @@ const CalendarView = ({
     const clickedDate = selectInfo.startStr;
     const today = new Date().toISOString().split('T')[0];
 
-    // No permitir seleccionar fechas pasadas
-    if (clickedDate < today) {
+    if (clickedDate < today && !isSupervisor) {
       alert('No puedes crear turnos en fechas pasadas');
       return;
     }
@@ -157,9 +158,7 @@ const CalendarView = ({
           editable={false}
           eventStartEditable={false}
           eventDurationEditable={false}
-          selectConstraint={{
-            start: new Date().toISOString().split('T')[0],
-          }}
+          selectConstraint={isSupervisor ? undefined : { start: new Date().toISOString().split('T')[0] }}
         />
       </div>
 
