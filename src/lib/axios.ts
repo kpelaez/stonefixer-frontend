@@ -55,7 +55,7 @@ api.interceptors.response.use(
       }
     } else if (status === 403) {
       if (import.meta.env.DEV) {
-        const detail = (error.response?.data as { detail?: string })?.detail;
+        const detail = (error.response?.data as { error?: { message?: string } })?.error?.message;
         console.warn(`[403 Forbidden] ${error.config?.method?.toUpperCase()} ${error.config?.url} — ${detail}`);
       }
       toast.error('No tenés permisos para realizar esta acción.');
@@ -91,8 +91,8 @@ export default api;
  */
 export function getApiError(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { detail?: string; message?: string } | undefined;
-    return data?.detail || data?.message || error.message || 'Error inesperado';
+    const data = error.response?.data as { error?: { message?: string }; detail?: string; message?: string } | undefined;
+    return data?.error?.message || data?.detail || data?.message || error.message || 'Error inesperado';
   }
   if (error instanceof Error) return error.message;
   return 'Error inesperado';
