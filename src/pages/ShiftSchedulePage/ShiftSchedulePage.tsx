@@ -177,7 +177,6 @@ const ShiftSchedulePage = () => {
               onShiftUpdated={handleShiftUpdated}
               onShiftDeleted={handleShiftDeleted}
               users={users}
-              isSupervisor={isSupervisor}
             />
           )}
 
