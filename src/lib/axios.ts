@@ -21,7 +21,7 @@ const api = axios.create({
   baseURL: import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL ?? ''),
   headers: {
     'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
+    'X-Requested-With': 'XMLHttpRequest' // requerido por el middleware CSRF del backend
   },
   timeout: 15000, // 15 segundos — evita requests colgados silenciosamente
   withCredentials: true,  // <-- agregar esto: envía la cookie en cada request automáticamente
@@ -54,6 +54,10 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (status === 403) {
+      if (import.meta.env.DEV) {
+        const detail = (error.response?.data as { error?: { message?: string } })?.error?.message;
+        console.warn(`[403 Forbidden] ${error.config?.method?.toUpperCase()} ${error.config?.url} — ${detail}`);
+      }
       toast.error('No tenés permisos para realizar esta acción.');
     } else if (status === 404) {
       // 404 es silencioso: los servicios manejan este caso puntualmente
@@ -87,8 +91,8 @@ export default api;
  */
 export function getApiError(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { detail?: string; message?: string } | undefined;
-    return data?.detail || data?.message || error.message || 'Error inesperado';
+    const data = error.response?.data as { error?: { message?: string }; detail?: string; message?: string } | undefined;
+    return data?.error?.message || data?.detail || data?.message || error.message || 'Error inesperado';
   }
   if (error instanceof Error) return error.message;
   return 'Error inesperado';

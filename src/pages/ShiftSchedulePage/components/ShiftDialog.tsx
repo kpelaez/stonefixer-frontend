@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ShiftSchedule, ShiftScheduleCreate, ShiftType } from '../../../types/shiftSchedule';
+import { ShiftSchedule, ShiftScheduleCreate, ShiftType, TeamMember } from '../../../types/shiftSchedule';
 import shiftScheduleService from '../../../services/shiftScheduleService';
 import { useAuthStore } from '../../../stores/authStore';
+import { getApiError } from '../../../lib/axios';
 
 interface ShiftDialogProps {
   isOpen: boolean;
@@ -26,8 +27,6 @@ const ShiftDialog = ({
   onShiftCreated,
   onShiftUpdated,
   onShiftDeleted,
-  users,
-  isSupervisor,
 }: ShiftDialogProps) => {
   const [shiftType, setShiftType] = useState<ShiftType>('regular');
   const [notes, setNotes] = useState('');
@@ -36,22 +35,21 @@ const ShiftDialog = ({
 
   const isEditing = !!existingShift;
   const currentUserId = useAuthStore(state => state.user?.id) || 1;
-  const [targetUserId, setTargetUserId] = useState<number | undefined>(undefined);
+  const isSupervisor = useAuthStore(state => state.hasAnyRole(['admin', 'manager']));
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [targetUserId, setTargetUserId] = useState<number>(currentUserId);
+
 
   const isMyShift = existingShift?.user_id === currentUserId;
   const canDelete = isMyShift || isSupervisor;
 
   useEffect(() => {
-    if (existingShift) {
-      setShiftType(existingShift.shift_type);
-      setNotes(existingShift.notes || '');
-    } else {
-      setShiftType('regular');
-      setNotes('');
-      setTargetUserId(undefined); // reset al abrir para nuevo turno
+    if (isSupervisor && !existingShift) {
+      shiftScheduleService.getTeamMembers()
+        .then(setTeamMembers)
+        .catch(() => setTeamMembers([]));
     }
-    setError(null);
-  }, [existingShift, isOpen]);
+  }, [isSupervisor, existingShift]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +73,7 @@ const ShiftDialog = ({
           date: selectedDate,
           shift_type: shiftType,
           notes: notes.trim() || undefined,
-          ...(isSupervisor && targetUserId ? { target_user_id: targetUserId } : {}),
+          target_user_id: isSupervisor && targetUserId !== currentUserId ? targetUserId : undefined,
         };
         await shiftScheduleService.createShiftSchedule(newShift);
         onShiftCreated();
@@ -83,7 +81,7 @@ const ShiftDialog = ({
 
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      setError(getApiError(err));
     } finally {
       setLoading(false);
     }
@@ -106,7 +104,7 @@ const ShiftDialog = ({
       onShiftDeleted();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al eliminar');
+      setError(getApiError(err));
     } finally {
       setLoading(false);
     }
@@ -143,18 +141,22 @@ const ShiftDialog = ({
             </div>
           )}
           {/* {Si es supervisor, puede elegir usuario} */}
-          {isSupervisor && !isEditing && users && users.length > 0 && (
-            <div className="form-group">
-              <label htmlFor="targetUser">Asignar a usuario</label>
+          {isSupervisor && !isEditing && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Asignar a
+              </label>
               <select
-                id="targetUser"
-                value={targetUserId ?? ''}
-                onChange={(e) => setTargetUserId(e.target.value ? Number(e.target.value) : undefined)}
+                value={targetUserId}
+                onChange={(e) => setTargetUserId(Number(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg p-2"
               >
-                <option value="">— Yo mismo —</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.full_name}</option>
-                ))}
+                <option value={currentUserId}>Yo mismo</option>
+                {teamMembers
+                  .filter((m) => m.id !== currentUserId)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
               </select>
             </div>
           )}

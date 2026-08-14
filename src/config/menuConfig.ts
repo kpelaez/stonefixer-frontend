@@ -140,6 +140,12 @@ export const menuItems: MenuItem[] = [
             requiredRoles: ['admin', 'manager'],   // Solo managers ven esto
           },
           {
+            id: 'sectores-stock-inventario',
+            title: 'Inventario de Stock',
+            path: '/stock/inventario',
+            requiredRoles: ['admin', 'manager'],
+          },
+          {
             id: 'sectores-stock-reportes',
             title: 'Reportes',
             icon: BarChart2,  
@@ -153,6 +159,7 @@ export const menuItems: MenuItem[] = [
               },
             ],
           },
+          
         ]
       },
     ]

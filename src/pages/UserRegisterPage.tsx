@@ -114,69 +114,32 @@ const UserRegisterPage = ()=>{
     };
     
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-        return;
-    }
-    
-    setSubmitStatus('loading');
-
-    // Función para registrar usuario
-    const registerUser = async (userData: Omit<RegisterFormData, 'confirmPassword'>) => {
-        try {
-          // Si estamos usando el store directamente
-          if (register) {
-            await register(userData);
-            return;
-          }
-          
-          // Alternativa: llamada directa a la API
-          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/register`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(userData),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error al registrar usuario');
-          }
-        } catch (error) {
-          console.error('Error registrando usuario:', error);
-          throw error;
-        }
-    };
+      e.preventDefault();
+      
+      if (!validateForm()) {
+          return;
+      }
+      
+      setSubmitStatus('loading');
 
       try {
-        // Llamar a la API para registrar usuario
-        await registerUser({
+        await register({
           email: formData.email,
           password: formData.password,
           full_name: formData.full_name,
           is_active: formData.is_active,
           roles: formData.roles,
         });
-        
+
         setSubmitStatus('success');
         setStatusMessage(`Usuario ${formData.email} registrado con éxito`);
-        
-        // Resetear formulario
         setFormData({
-          email: '',
-          password: '',
-          confirmPassword: '',
-          full_name: '',
-          is_active: true,
-          roles: ['user'],
+          email: '', password: '', confirmPassword: '', full_name: '', is_active: true, roles: ['user'],
         });
-        
       } catch (error) {
         setSubmitStatus('error');
         setStatusMessage(error instanceof Error ? error.message : 'Error al registrar usuario');
-      };
+      }
     }
 
   return (

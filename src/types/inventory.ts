@@ -134,6 +134,9 @@ export interface AssetAssignment {
   document_sent_at?: string;
   humand_document_name?: string;
   humand_folder_id?: number;
+  humand_send_status?: HumandSendStatus;
+  humand_error_detail?: string;
+  humand_last_attempt_at?: string;
 
   assigned_to_has_dni?: boolean;
 }
@@ -399,25 +402,30 @@ export interface SelectOption {
 
 // NUEVOS TIPOS PARA DOCUMENTOS DE ASIGNACIÓN
 
+export type HumandSendStatus = 'PENDING' | 'SENT' | 'FAILED' | null;
+ 
 export interface AssignmentDocumentStatus {
   assignment_id: number;
+  send_status: HumandSendStatus;      
   document_sent: boolean;
   sent_at: string | null;
+  last_attempt_at: string | null;      
   document_name: string | null;
   folder_id: number | null;
+  error_detail: string | null;         
 }
-
-export interface SendToHumandRequest {
-  send_notification: boolean;
-}
-
+ 
 export interface SendToHumandResponse {
   message: string;
   assignment_id: number;
   employee_name: string;
   asset_name: string;
-  sent_at: string;
-  humand_response: any;
+  status: 'PENDING';                  
+  detail: string;
+}
+
+export interface SendToHumandRequest {
+  send_notification: boolean;
 }
 
 export interface UserDNIUpdate {

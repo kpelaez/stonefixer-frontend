@@ -62,6 +62,14 @@ const modules = [
     path: '/inventory/maintenance',
     roles: ['admin', 'manager', 'inventory_manager'],
   },
+  {
+    icon: Package,
+    color: 'bg-teal-50 text-teal-600',
+    title: 'Inventario de Stock',
+    description: 'Relevamiento físico de stock: scraping Omnimedica, comparación con Finnegans y generación de actas.',
+    path: '/stock/inventario',
+    roles: ['admin', 'manager'],
+  },
 ];
 
 // ─── Próximamente 

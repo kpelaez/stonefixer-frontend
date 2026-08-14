@@ -12,6 +12,7 @@ import type {
   ShiftScheduleUpdate,
   ShiftScheduleStats,
   ShiftAlertsResponse,
+  TeamMember,
 } from '../types/shiftSchedule';
 
 const BASE = '/api/v1/shift-schedules';
@@ -79,6 +80,11 @@ class ShiftScheduleService {
     const { data } = await api.get<ShiftAlertsResponse>(`${BASE}/alerts`, {
       params: { department: 'stock' },
     });
+    return data;
+  }
+
+  async getTeamMembers(): Promise<TeamMember[]> {
+    const { data } = await api.get<TeamMember[]>(`${BASE}/team-members`);
     return data;
   }
 }
