@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../../stores/authStore';
 
 interface ConnectionTest {
   name: string;
@@ -9,10 +8,16 @@ interface ConnectionTest {
   responseTime?: number;
 }
 
+// Misma lógica que src/lib/axios.ts: en DEV se usa base relativa (proxy de Vite),
+// en producción se toma VITE_API_URL. Este componente solo se renderiza en DEV
+// (ver el guard más abajo), pero TypeScript igual lo tipa en el build de prod,
+// así que no puede depender de un método del authStore que nunca existió.
+const getApiUrl = (): string =>
+  import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL ?? '');
+
 const NetworkDebug: React.FC = () => {
   const [tests, setTests] = useState<ConnectionTest[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const getApiUrl  = useAuthStore(state => state.getApiUrl);
 
   const runConnectionTests = async () => {
     setIsRunning(true);
@@ -142,53 +147,6 @@ const NetworkDebug: React.FC = () => {
           : test
       ));
     }
-
-    // Test 4: User Profile (requiere token)
-  //   const token = localStorage.getItem('auth_token');
-  //   if (token) {
-  //     try {
-  //       const startTime = Date.now();
-  //       const response = await fetch(`${apiUrl}/me`, {
-  //         headers: {
-  //           'Authorization': `Bearer ${token}`
-  //         }
-  //       });
-  //       const endTime = Date.now();
-        
-  //       setTests(prev => prev.map(test => 
-  //         test.name === 'User Profile' 
-  //           ? {
-  //               ...test,
-  //               status: response.ok ? 'success' : 'error',
-  //               message: response.ok 
-  //                 ? `✅ Perfil de usuario accesible (${response.status})` 
-  //                 : `❌ Error ${response.status} - Token inválido o expirado`,
-  //               responseTime: endTime - startTime
-  //             }
-  //           : test
-  //       ));
-  //     } catch (error) {
-  //       setTests(prev => prev.map(test => 
-  //         test.name === 'User Profile' 
-  //           ? {
-  //               ...test,
-  //               status: 'error',
-  //               message: `❌ Error de conexión: ${error instanceof Error ? error.message : 'Unknown error'}`
-  //             }
-  //           : test
-  //       ));
-  //     }
-  //   } else {
-  //     setTests(prev => prev.map(test => 
-  //       test.name === 'User Profile' 
-  //         ? {
-  //             ...test,
-  //             status: 'error',
-  //             message: '⚠️ No hay token de autenticación'
-  //           }
-  //         : test
-  //     ));
-  //   }
 
     setIsRunning(false);
   };
