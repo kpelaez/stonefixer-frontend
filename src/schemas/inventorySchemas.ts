@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { AssetCategory, AssetStatus } from '../types/inventory';
+import { AssetCategory, AssetStatus, CableType } from '../types/inventory';
 
 // VALIDACIONES COMUNES (reutilizables)
 
@@ -43,7 +43,7 @@ export const techAssetBaseSchema = z.object({
   category: z.enum(AssetCategory, {
     message: 'Debe seleccionar una categoría válida',
   }),
-  
+  connector_type: z.enum(CableType).optional(),
   purchase_date: dateString('Fecha de compra')
     .refine((date) => {
       const purchaseDate = new Date(date);
@@ -115,10 +115,19 @@ export const techAssetCreateSchema = techAssetBaseSchema.refine((data) => {
     return false;
   }
   return true;
-}, {
-  message: 'Si especifica un precio, debe incluir la fecha de compra',
-  path: ['purchase_date'],
-});
+  }, {
+    message: 'Si especifica un precio, debe incluir la fecha de compra',
+    path: ['purchase_date'],
+  })
+  .refine((data) => {
+    if (data.connector_type && data.category !== AssetCategory.CABLE) {
+      return false;
+    }
+      return true;
+    }, {
+      message: 'El tipo de conector solo aplica a la categoría Cable',
+      path: ['connector_type'],
+  });
 
 // Inferir el tipo TypeScript desde el schema
 export type TechAssetCreateFormData = z.infer<typeof techAssetCreateSchema>;

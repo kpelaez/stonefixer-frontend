@@ -9,6 +9,7 @@ export interface TechAsset {
     serial_number: string;
     asset_tag?: string;
     category: AssetCategory;
+    connector_type?: CableType;
     status: AssetStatus;
     purchase_price?: number;
     purchase_date?: string;
@@ -34,6 +35,7 @@ export interface TechAssetCreate {
   serial_number: string;
   asset_tag?: string;
   category: AssetCategory;
+  connector_type?: CableType;
   status?: AssetStatus;
   purchase_price?: number;
   purchase_date: string;
@@ -56,6 +58,7 @@ export interface TechAssetUpdate {
   serial_number?: string;
   asset_tag?: string;
   category?: AssetCategory;
+  connector_type?: CableType;
   status?: AssetStatus;
   purchase_price?: number;
   purchase_date?: string;
@@ -431,4 +434,20 @@ export interface SendToHumandRequest {
 export interface UserDNIUpdate {
   dni: string;
   consent: boolean;
+}
+
+
+export enum CableType {
+  RJ45 = "RJ45",
+  USB_A = "USB_A",
+  USB_B = "USB_B",
+  USB_C = "USB_C",
+  HDMI = "HDMI",
+  DISPLAYPORT = "DisplayPort",
+  VGA = "VGA",
+  INTERLOCK = "Interlock",
+  AUDIO_JACK = "Audio_Jack",
+  PS2 = "PS2",
+  SATA_ALIMENTACION = "SATA_Alimentacion",
+  OTRO = "Otro",
 }

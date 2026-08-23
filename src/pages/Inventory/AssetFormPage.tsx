@@ -9,7 +9,7 @@ import {
   techAssetCreateSchema, 
   type TechAssetCreateFormData 
 } from '../../schemas/inventorySchemas';
-import { AssetCategory, AssetStatus } from '../../types/inventory';
+import { AssetCategory, AssetStatus, CableType } from '../../types/inventory';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import inventoryApi from '../../services/inventoryApi'
 import toast from 'react-hot-toast';
@@ -77,6 +77,7 @@ const AssetFormPage: React.FC = () => {
         serial_number: asset.serial_number,
         asset_tag: asset.asset_tag || '',
         category: asset.category,
+        connector_type: asset.connector_type,
         status: asset.status,
         purchase_price: asset.purchase_price || 0,
         purchase_date: asset.purchase_date ? asset.purchase_date.split('T')[0] : '',
@@ -156,6 +157,27 @@ const AssetFormPage: React.FC = () => {
       value: value,
       label: value.replace(/_/g, ' '),
     }));
+
+  const cableTypeOptions = [
+    { value: CableType.RJ45, label: 'RJ45 (red)' },
+    { value: CableType.USB_A, label: 'USB-A' },
+    { value: CableType.USB_B, label: 'USB-B' },
+    { value: CableType.USB_C, label: 'USB-C' },
+    { value: CableType.HDMI, label: 'HDMI' },
+    { value: CableType.DISPLAYPORT, label: 'DisplayPort' },
+    { value: CableType.VGA, label: 'VGA' },
+    { value: CableType.INTERLOCK, label: 'Interlock (IEC)' },
+    { value: CableType.AUDIO_JACK, label: 'Audio Jack 3.5mm' },
+    { value: CableType.PS2, label: 'PS/2' },
+    { value: CableType.SATA_ALIMENTACION, label: 'SATA (alimentación)' },
+    { value: CableType.OTRO, label: 'Otro' },
+  ];
+
+  useEffect(() => {
+    if (selectedCategory !== AssetCategory.CABLE) {
+      setValue('connector_type', undefined);
+    }
+  }, [selectedCategory, setValue]);
   
 
   if (isLoadingData) {
@@ -225,6 +247,18 @@ const AssetFormPage: React.FC = () => {
                 error={errors.category}
                 required
               />
+
+              {selectedCategory === AssetCategory.CABLE && (
+                <FormSelect
+                  label="Tipo de conector"
+                  name="connector_type"
+                  options={cableTypeOptions}
+                  register={register}
+                  error={errors.connector_type}
+                  required={false}
+                  helpText="Solo aplica a activos de categoría Cable"
+                />
+              )}
               
               <FormInput
                 label="Marca"
