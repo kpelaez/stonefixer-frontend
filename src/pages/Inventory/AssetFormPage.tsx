@@ -1,5 +1,5 @@
 // src/pages/Inventory/AssetFormPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,7 @@ const AssetFormPage: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(isEditMode);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isGeneratingTag, setIsGeneratingTag] = useState(false);
+  const prevCategoryRef = useRef<AssetCategory | undefined>(undefined);
 
   // Obtener funciones del store
   const createTechAsset = useInventoryStore(state => state.createTechAsset);
@@ -47,6 +48,7 @@ const AssetFormPage: React.FC = () => {
 
   // Watch category para el botón de generar tag
   const selectedCategory = watch('category');
+  console.log('DEBUG connector_type en form state:', watch('connector_type')); //debug
 
   // Cargar datos si es edición
   useEffect(() => {
@@ -54,6 +56,19 @@ const AssetFormPage: React.FC = () => {
       loadAssetData(parseInt(id));
     }
   }, [id, isEditMode]);
+
+  useEffect(() => {
+    const prevCategory = prevCategoryRef.current;
+    prevCategoryRef.current = selectedCategory;
+
+    // Solo limpiar si hubo una transición real de Cable a otra categoría.
+    if (
+      prevCategory === AssetCategory.CABLE &&
+      selectedCategory !== AssetCategory.CABLE
+    ) {
+      setValue('connector_type', undefined);
+    }
+  }, [selectedCategory, setValue]);
   
   const loadAssetData = (assetId: number) => {
     try {
@@ -172,12 +187,6 @@ const AssetFormPage: React.FC = () => {
     { value: CableType.SATA_ALIMENTACION, label: 'SATA (alimentación)' },
     { value: CableType.OTRO, label: 'Otro' },
   ];
-
-  useEffect(() => {
-    if (selectedCategory !== AssetCategory.CABLE) {
-      setValue('connector_type', undefined);
-    }
-  }, [selectedCategory, setValue]);
   
 
   if (isLoadingData) {
