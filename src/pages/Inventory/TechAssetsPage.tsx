@@ -1,10 +1,11 @@
 import { useEffect, useState} from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import {useInventoryStore} from '../../stores/inventoryStore';
+import {inventoryApi}  from '../../services/inventoryApi';
 import { TechAsset } from '../../types/inventory';
 import  AssignmentHistoryModal  from '../../components/Inventory/AssignmentHistoryModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { Package, Plus, Search, Filter, Download, Upload, Edit, Trash2, Eye, MapPin, AlertCircle, Locate, User, History, Loader2 } from 'lucide-react';
+import { Package, Plus, Search, Filter, Upload, Edit, Trash2, Eye, MapPin, AlertCircle, Locate, User, History, Loader2 } from 'lucide-react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Pagination from '../../components/Pagination/Pagination';
 import toast from 'react-hot-toast';
@@ -72,6 +73,8 @@ const TechAssetsPage = () => {
     assetName: '',
   });
   const [isDeleting, setIsDeleting] = useState(false);
+  // Estado para exportar label
+  const [isExporting, setIsExporting] = useState(false);
 
   // Usando hook Propio useInventoryStore
   const techAssets = useInventoryStore(state => state.techAssets);
@@ -157,7 +160,7 @@ const handleConfirmDelete = async () => {
   }
 };
 
-  const handleBulkAction = (action: string) => {
+  const handleBulkAction = async (action: string) => {
     if (selectedAssets.length === 0) {
       alert('Por favor selecciona al menos un activo');
       return;
@@ -165,7 +168,24 @@ const handleConfirmDelete = async () => {
 
     switch (action) {
       case 'export':
-        console.log('Exportar activos seleccionados:', selectedAssets);
+        setIsExporting(true);
+          try {
+            const blob = await inventoryApi.exportLabels(selectedAssets);
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'stonefixer_etiquetas.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            toast.success('Etiquetas exportadas exitosamente');
+            } catch (error) {
+              const errorMessage = inventoryApi.handleApiError(error);
+              toast.error(errorMessage);
+            } finally {
+              setIsExporting(false);
+            }
         break;
       case 'assign':
         console.log('Asignar activos seleccionados:', selectedAssets);
@@ -293,9 +313,10 @@ const handleConfirmDelete = async () => {
             <div className="flex gap-2">
               <button
                 onClick={() => handleBulkAction('export')}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                disabled={isExporting}
+                className="px-3 py-1 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="h-4 w-4" />
+                {isExporting ? 'Exportando...' : 'Exportar'}
               </button>
               <button
                 onClick={() => handleBulkAction('import')}

@@ -336,6 +336,17 @@ class InventoryApiService {
         if (error instanceof Error) return error.message;
         return 'Ha ocurrido un error inesperado';
     }
+
+    async exportLabels(ids: number[]): Promise<Blob> {
+    const response = await api.get('/api/v1/inventory/tech-assets/export-labels', {
+        params: { ids },
+        paramsSerializer: {
+            indexes: null, // ids=1&ids=2&ids=3 en vez de ids[]=1&ids[]=2
+        },
+        responseType: 'blob',
+    });
+    return response.data;
+}
 }
 
 // Singleton
