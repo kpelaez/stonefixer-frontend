@@ -64,13 +64,9 @@ interface PanelEjecutivoKpis {
   giro_negocio_pct: number;
   venta_bruta_cm: number;
   contribucion_marginal_pct: number;
+  ordenes_compra: number;
 }
 
-interface VentaMesKpis {
-  venta_total: number
-  cantidad_ots: number
-  data_asof: string | null
-}
 
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", {
@@ -88,10 +84,10 @@ const fmtUSD = (n: number) =>
 const fmtShort = (n: number, moneda: Moneda): string => {
   const symbol = moneda === "USD" ? "US$" : "$";
   if (Math.abs(n) >= 1_000_000_000)
-    return `${symbol}${(n / 1_000_000_000).toFixed(1)}B`;
+    return `${symbol}${(n / 1_000_000_000).toFixed(2)}B`;
   if (Math.abs(n) >= 1_000_000)
-    return `${symbol}${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `${symbol}${(n / 1_000).toFixed(0)}K`;
+    return `${symbol}${(n / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(n) >= 1_000) return `${symbol}${(n / 1_000).toFixed(1)}K`;
   return `${symbol}${n.toFixed(0)}`;
 };
 
@@ -312,10 +308,6 @@ const PanelEjecutivoDashboard: React.FC = () => {
   const [panelLoading, setPanelLoading] = useState(true);
   const [panelError, setPanelError] = useState(false);
 
-  const [ventaMes, setVentaMes] = useState<VentaMesKpis | null>(null);
-  const [ventaMesLoading, setVentaMesLoading] = useState(true);
-  const [ventaMesError, setVentaMesError] = useState(false);
-
   const mesesDisponibles = periodosDisponibles
     .filter((periodo) => periodo.anio === anioSeleccionado)
     .sort((periodoA, periodoB) => periodoA.mes - periodoB.mes);
@@ -337,11 +329,6 @@ const PanelEjecutivoDashboard: React.FC = () => {
       })
       .finally(() => setPanelLoading(false));
 
-    setVentaMesLoading(true); setVentaMesError(false)
-    apiGet<VentaMesKpis>(`/api/v1/venta-mes/kpis?${qs}`)
-      .then(setVentaMes)
-      .catch(() => setVentaMesError(true))
-      .finally(() => setVentaMesLoading(false))  
   }, [anioSeleccionado, mesSeleccionado]);
 
   useEffect(() => {
@@ -528,49 +515,14 @@ const PanelEjecutivoDashboard: React.FC = () => {
 
         <KpiCard
           label="Venta del Mes"
-          value={ventaMes ? fmtMoneyShort(ventaMes.venta_total) : "—"}
-          sub={ventaMes ? `${ventaMes.cantidad_ots} OTs generadas` : undefined}
+          value={panelKpis ? fmtMoneyShort(panelKpis.ordenes_compra) : "—"}
+          sub={panelKpis ? fmtMoney(panelKpis.ordenes_compra) : undefined}
           icon={<ClipboardList size={18} className="text-purple-600" />}
           accent="bg-purple-100"
-          loading={ventaMesLoading}
-          error={ventaMesError}
+          loading={panelLoading}
+          error={panelError}
           tooltip="Suma de OTs generadas en el período. No representa facturación."
         />
-
-        {/* <button
-          onClick={() => navigate("/dashboards/contribucion-marginal")}
-          disabled={panelLoading || panelError}
-          className="text-left bg-white rounded-xl border border-emerald-300 p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 shadow-md hover:shadow-lg hover:border-emerald-500 transition-all group cursor-pointer disabled:cursor-default disabled:opacity-60"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-medium text-gray-500">
-              Contribución Marginal
-            </span>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-100">
-              <PieChart size={18} className="text-emerald-600" />
-            </div>
-          </div>
-          <div>
-            {panelLoading ? (
-              <p className="text-sm text-gray-400">Cargando...</p>
-            ) : panelError || !panelKpis ? (
-              <p className="text-sm text-red-500">Error al cargar</p>
-            ) : (
-              <>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight break-all">
-                  {fmtMoneyShort(panelKpis.contribucion_marginal)}
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 truncate">
-                  {fmtPct(panelKpis.contribucion_marginal_pct)} sobre venta
-                  bruta
-                </p>
-              </>
-            )}
-          </div>
-          <div className="text-[10px] sm:text-xs font-medium flex items-center gap-1 text-emerald-600 group-hover:gap-2 transition-all">
-            Ver detalle por cliente <ArrowRight size={12} />
-          </div>
-        </button> */}
 
         <KpiCard
           label="Giro de Negocio"
