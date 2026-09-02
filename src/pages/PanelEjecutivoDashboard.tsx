@@ -17,12 +17,14 @@ import {
   TrendingUp,
   DollarSign,
   Wallet,
-  PieChart,
+  // PieChart,
   RefreshCw,
   ArrowRight,
   Receipt,
   Landmark,
   CalendarDays,
+  ClipboardList,
+  Info,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL; // confirmar nombre real de la env var
@@ -62,6 +64,12 @@ interface PanelEjecutivoKpis {
   giro_negocio_pct: number;
   venta_bruta_cm: number;
   contribucion_marginal_pct: number;
+}
+
+interface VentaMesKpis {
+  venta_total: number
+  cantidad_ots: number
+  data_asof: string | null
 }
 
 const fmtARS = (n: number) =>
@@ -190,6 +198,9 @@ const KpiCard: React.FC<{
   trendColor?: string;
   loading?: boolean;
   error?: boolean;
+  tooltip?: string;
+  linkLabel?: string;
+  onLinkClick?: () => void;
 }> = ({
   label,
   value,
@@ -200,12 +211,25 @@ const KpiCard: React.FC<{
   trendColor = "text-gray-500",
   loading,
   error,
+  tooltip,
+  linkLabel,
+  onLinkClick,
 }) => (
   <div className="bg-white rounded-xl border border-slate-300 p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 shadow-md">
     <div className="flex items-center justify-between">
-      <span className="text-xs sm:text-sm font-medium text-gray-500">
-        {label}
-      </span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs sm:text-sm font-medium text-gray-500">
+          {label}
+        </span>
+        {tooltip && (
+          <div className="group relative flex">
+            <Info size={12} className="text-gray-300 hover:text-gray-500 cursor-help" />
+            <div className="absolute left-0 top-5 z-10 w-52 p-2 bg-gray-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              {tooltip}
+            </div>
+          </div>
+        )}
+      </div>
       <div
         className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 ${accent}`}
       >
@@ -236,6 +260,15 @@ const KpiCard: React.FC<{
       >
         {trend}
       </div>
+    )}
+    {linkLabel && onLinkClick && !loading && !error && (
+      <button
+        onClick={onLinkClick}
+        className="text-[10px] sm:text-xs font-medium text-emerald-600 hover:text-emerald-800 flex items-center gap-1 self-start group/link"
+      >
+        {linkLabel}
+        <ArrowRight size={11} className="group-hover/link:translate-x-0.5 transition-transform" />
+      </button>
     )}
   </div>
 );
@@ -279,9 +312,14 @@ const PanelEjecutivoDashboard: React.FC = () => {
   const [panelLoading, setPanelLoading] = useState(true);
   const [panelError, setPanelError] = useState(false);
 
+  const [ventaMes, setVentaMes] = useState<VentaMesKpis | null>(null);
+  const [ventaMesLoading, setVentaMesLoading] = useState(true);
+  const [ventaMesError, setVentaMesError] = useState(false);
+
   const mesesDisponibles = periodosDisponibles
     .filter((periodo) => periodo.anio === anioSeleccionado)
     .sort((periodoA, periodoB) => periodoA.mes - periodoB.mes);
+
   const cargarDatos = useCallback(() => {
     if (anioSeleccionado === null) return;
 
@@ -298,6 +336,12 @@ const PanelEjecutivoDashboard: React.FC = () => {
         setPanelError(true);
       })
       .finally(() => setPanelLoading(false));
+
+    setVentaMesLoading(true); setVentaMesError(false)
+    apiGet<VentaMesKpis>(`/api/v1/venta-mes/kpis?${qs}`)
+      .then(setVentaMes)
+      .catch(() => setVentaMesError(true))
+      .finally(() => setVentaMesLoading(false))  
   }, [anioSeleccionado, mesSeleccionado]);
 
   useEffect(() => {
@@ -468,6 +512,8 @@ const PanelEjecutivoDashboard: React.FC = () => {
           accent="bg-blue-100"
           loading={panelLoading}
           error={panelError}
+          linkLabel="Ver Contribución Marginal"
+          onLinkClick={() => navigate("/dashboards/contribucion-marginal")}
         />
 
         <KpiCard
@@ -480,7 +526,18 @@ const PanelEjecutivoDashboard: React.FC = () => {
           error={panelError}
         />
 
-        <button
+        <KpiCard
+          label="Venta del Mes"
+          value={ventaMes ? fmtMoneyShort(ventaMes.venta_total) : "—"}
+          sub={ventaMes ? `${ventaMes.cantidad_ots} OTs generadas` : undefined}
+          icon={<ClipboardList size={18} className="text-purple-600" />}
+          accent="bg-purple-100"
+          loading={ventaMesLoading}
+          error={ventaMesError}
+          tooltip="Suma de OTs generadas en el período. No representa facturación."
+        />
+
+        {/* <button
           onClick={() => navigate("/dashboards/contribucion-marginal")}
           disabled={panelLoading || panelError}
           className="text-left bg-white rounded-xl border border-emerald-300 p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 shadow-md hover:shadow-lg hover:border-emerald-500 transition-all group cursor-pointer disabled:cursor-default disabled:opacity-60"
@@ -513,7 +570,7 @@ const PanelEjecutivoDashboard: React.FC = () => {
           <div className="text-[10px] sm:text-xs font-medium flex items-center gap-1 text-emerald-600 group-hover:gap-2 transition-all">
             Ver detalle por cliente <ArrowRight size={12} />
           </div>
-        </button>
+        </button> */}
 
         <KpiCard
           label="Giro de Negocio"
