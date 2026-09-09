@@ -140,15 +140,77 @@ const KpiCard: React.FC<{
 // Y-AXIS TICK
 // ============================================================
 
+// Canvas reutilizable para medir texto (se crea una sola vez)
+let measureCanvas: HTMLCanvasElement | null = null
+const measureTextWidth = (text: string, font: string): number => {
+  if (!measureCanvas) measureCanvas = document.createElement('canvas')
+  const ctx = measureCanvas.getContext('2d')!
+  ctx.font = font
+  return ctx.measureText(text).width
+}
+
+const LINE1_FONT = '600 10px Inter, system-ui, sans-serif'
+const LINE2_FONT = '400 9px Inter, system-ui, sans-serif'
+
+function splitIntoTwoLines(text: string, maxWidth: number): [string, string] {
+  const words = text.split(' ').filter(Boolean)
+  let line1 = ''
+  let i = 0
+  for (; i < words.length; i++) {
+    const candidate = line1 ? `${line1} ${words[i]}` : words[i]
+    if (measureTextWidth(candidate, LINE1_FONT) <= maxWidth) {
+      line1 = candidate
+    } else break
+  }
+  if (!line1) { line1 = words[0] ?? ''; i = 1 } // fallback: palabra sola más larga que maxWidth
+
+  let line2 = words.slice(i).join(' ')
+  if (line2 && measureTextWidth(line2, LINE2_FONT) > maxWidth) {
+    while (line2.length > 1 && measureTextWidth(line2 + '…', LINE2_FONT) > maxWidth) {
+      line2 = line2.slice(0, -1)
+    }
+    line2 += '…'
+  }
+  return [line1, line2]
+}
+
+const Y_AXIS_WIDTH = 230
+const Y_AXIS_TEXT_MAX_WIDTH = Y_AXIS_WIDTH - 15
+
+
+
+// const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
+//   const name = (payload?.value ?? '').replace(/"+/g, '').trim()
+//   const words = name.split(' ').filter(Boolean)
+//   let line1 = ''; let splitIndex = 0
+//   for (let i = 0; i < words.length; i++) {
+//     const candidate = line1 ? `${line1} ${words[i]}` : words[i]
+//     if (candidate.length <= 26) { line1 = candidate; splitIndex = i + 1 } else break
+//   }
+//   if (splitIndex >= words.length) {
+//     return (
+//       <g transform={`translate(${x},${y})`}>
+//         <title>{name}</title>
+//         <text x={0} y={0} dy={4} textAnchor="end" fill="#374151" fontSize={10}>{line1}</text>
+//       </g>
+//     )
+//   }
+//   let line2 = words.slice(splitIndex).join(' ')
+//   if (line2.length > 28) line2 = line2.substring(0, 19) + '…'
+//   return (
+//     <g transform={`translate(${x},${y})`}>
+//       <title>{name}</title>
+//       <text x={0} y={-7} textAnchor="end" fill="#374151" fontSize={10} fontWeight={600}>{line1}</text>
+//       <text x={0} y={6} textAnchor="end" fill="#6b7280" fontSize={9}>{line2}</text>
+//     </g>
+//   )
+// }
+
 const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) => {
   const name = (payload?.value ?? '').replace(/"+/g, '').trim()
-  const words = name.split(' ').filter(Boolean)
-  let line1 = ''; let splitIndex = 0
-  for (let i = 0; i < words.length; i++) {
-    const candidate = line1 ? `${line1} ${words[i]}` : words[i]
-    if (candidate.length <= 18) { line1 = candidate; splitIndex = i + 1 } else break
-  }
-  if (splitIndex >= words.length) {
+  const [line1, line2] = useMemo(() => splitIntoTwoLines(name, Y_AXIS_TEXT_MAX_WIDTH), [name])
+
+  if (!line2) {
     return (
       <g transform={`translate(${x},${y})`}>
         <title>{name}</title>
@@ -156,8 +218,6 @@ const CustomYAxisTick = ({ x, y, payload }: { x?: number; y?: number; payload?: 
       </g>
     )
   }
-  let line2 = words.slice(splitIndex).join(' ')
-  if (line2.length > 20) line2 = line2.substring(0, 19) + '…'
   return (
     <g transform={`translate(${x},${y})`}>
       <title>{name}</title>
@@ -438,11 +498,20 @@ const ContribucionMarginalDashboard: React.FC = () => {
             ${mes === '' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400 hover:text-emerald-700'}`}>
           Todos
         </button>
-        {mesesDisponibles.map((m) => (
+        {mesesDisponibles.map((m, idx) => (
           <button key={m} onClick={() => setMes(m)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors
               ${mes === m ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400 hover:text-emerald-700'}`}>
             {mesLabel(m)}
+            {idx === 0 && (
+              <span
+                title="Este mes todavía no cerró contablemente"
+                className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none border
+                  ${mes === m ? 'bg-white/20 text-white border-white/40' : 'bg-amber-100 text-amber-700 border-amber-300'}`}
+              >
+                En proceso
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -496,7 +565,8 @@ const ContribucionMarginalDashboard: React.FC = () => {
               <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 50, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                 <XAxis type="number" tickFormatter={fmtShort} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={185} tick={<CustomYAxisTick />} axisLine={false} tickLine={false} />
+                {/* <YAxis type="category" dataKey="name" width={230} tick={<CustomYAxisTick />} axisLine={false} tickLine={false} /> */}
+                <YAxis type="category" dataKey="name" width={Y_AXIS_WIDTH} tick={<CustomYAxisTick />} axisLine={false} tickLine={false} />
                 <Tooltip content={<CmBarTooltip />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
                 <Bar dataKey="cm" radius={[0, 4, 4, 0]} maxBarSize={26} style={{ cursor: 'pointer' }}
                   onClick={(data) => {
