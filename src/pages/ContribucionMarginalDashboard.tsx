@@ -18,6 +18,8 @@ import {
   TrendingUp, DollarSign, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown,
   Search, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Clock,
   Truck, CalendarDays, ArrowLeft,
+  Info,
+  Briefcase,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import OTDetalleModal, { type RegistroCM } from './OTDetalleModal'
@@ -45,6 +47,17 @@ interface KpisPeriodo {
   pct_gastos: number
   pct_costos: number
   ultima_actualizacion: string | null
+    // Gasto comercial (gold_cm_kpis_periodo)
+  gastos_comerciales: number
+  pct_gastos_comerciales: number
+  gastos_comerciales_asignados: number
+  gastos_comerciales_sin_asignar: number
+  pct_gc_asignados: number     // sobre el gasto comercial total
+  pct_gc_sin_asignar: number   // sobre el gasto comercial total
+  gastos_comerciales_vendedor: number
+  gastos_comerciales_tecnico: number
+  pct_gc_vendedor: number      // sobre lo asignado
+  pct_gc_tecnico: number       // sobre lo asignado
 }
 
 interface MesDisponible {
@@ -99,7 +112,7 @@ const EMERALD_PALETTE = [
   '#0284c7', '#2563eb', '#4f46e5', '#7c3aed',
 ]
 
-const RADIAL_COLORS = { ventas: '#059669', costos: '#6366f1', gastos: '#f59e0b' }
+const RADIAL_COLORS = { ventas: '#059669', costos: '#6366f1', gastos: '#f59e0b', comerciales: '#e11d48' }
 
 // ============================================================
 // FETCH HELPER (cookie de sesión, no token manual)
@@ -112,16 +125,54 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 // ============================================================
+// TOOLTIP DE GASTO COMERCIAL
+// ============================================================
+// Los % vienen de la Gold. No se recalculan acá.
+// Ojo: dos denominadores distintos (ver comentarios en KpisPeriodo).
+
+const FilaTooltip: React.FC<{ label: string; value: number }> = ({ label, value }) => (
+  <div className="flex justify-between gap-4">
+    <span className="text-gray-500">{label}</span>
+    <span className="font-mono font-semibold text-gray-800">{fmtPct(value)}</span>
+  </div>
+)
+
+const GastoComercialTooltip: React.FC<{ kpis: KpisPeriodo }> = ({ kpis }) => (
+  <div
+    role="tooltip"
+    className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-60 rounded-lg border border-gray-200
+               bg-white p-3 text-xs shadow-lg invisible opacity-0 transition-opacity
+               group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+  >
+    <p className="font-semibold text-gray-700 mb-1">Cobertura</p>
+    <FilaTooltip label="Asignado" value={kpis.pct_gc_asignados} />
+    <FilaTooltip label="Sin asignar" value={kpis.pct_gc_sin_asignar} />
+    <p className="font-semibold text-gray-700 mt-3 mb-1">Distribución del asignado</p>
+    <FilaTooltip label="Vendedor" value={kpis.pct_gc_vendedor} />
+    <FilaTooltip label="Técnico" value={kpis.pct_gc_tecnico} />
+  </div>
+)
+
+
+// ============================================================
 // KPI CARD
 // ============================================================
 
 const KpiCard: React.FC<{
   label: string; value: string; sub?: string; icon: React.ReactNode
   accent: string; trend?: string; trendColor?: string
-}> = ({ label, value, sub, icon, accent, trend, trendColor = 'text-emerald-600' }) => (
-  <div className="bg-white rounded-xl border border-slate-300 p-5 flex flex-col gap-3 shadow-md hover:shadow-lg transition-shadow">
+  tooltip?: React.ReactNode
+}> = ({ label, value, sub, icon, accent, trend, trendColor = 'text-emerald-600', tooltip }) => (
+  <div
+    className={`bg-white rounded-xl border border-slate-300 p-5 flex flex-col gap-3 shadow-md hover:shadow-lg transition-shadow
+                ${tooltip ? 'relative group cursor-help focus:outline-none focus:ring-2 focus:ring-emerald-500' : ''}`}
+    tabIndex={tooltip ? 0 : undefined}
+  >
     <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
+      <span className="text-sm font-medium text-gray-500 flex items-center gap-1">
+        {label}
+        {tooltip && <Info size={13} className="text-gray-400" />}
+      </span>
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${accent}`}>{icon}</div>
     </div>
     <div>
@@ -133,6 +184,7 @@ const KpiCard: React.FC<{
         <TrendingUp size={12} /> {trend}
       </div>
     )}
+    {tooltip}
   </div>
 )
 
@@ -258,6 +310,7 @@ const CmBarTooltip: React.FC<{
 
 interface DonutSlice {
   name: string
+  short: string
   value: number
   pct: number
   fill: string
@@ -265,8 +318,8 @@ interface DonutSlice {
 }
 const LABEL_OFFSET = 18; const INNER_R = 55; const OUTER_R = 90
 
-const DonutLabel = ({ cx, cy, midAngle, outerRadius, pct, fill, name }: {
-  cx: number; cy: number; midAngle: number; outerRadius: number; pct: number; fill: string; name: string
+const DonutLabel = ({ cx, cy, midAngle, outerRadius, pct, fill, short }: {
+  cx: number; cy: number; midAngle: number; outerRadius: number; pct: number; fill: string; short: string
 }) => {
   if (pct < 0.5) return null
   const RADIAN = Math.PI / 180
@@ -283,7 +336,7 @@ const DonutLabel = ({ cx, cy, midAngle, outerRadius, pct, fill, name }: {
         {pct.toFixed(1)}%
       </text>
       <text x={ex + (cos >= 0 ? 4 : -4)} y={ey + 12} textAnchor={textAnchor} fill="#9ca3af" fontSize={9} dominantBaseline="central">
-        {name.split(' ')[0]}
+        {short.split(' ')[0]}
       </text>
     </g>
   )
@@ -295,7 +348,7 @@ const ComposicionDonut: React.FC<{ data: DonutSlice[] }> = ({ data }) => {
   const renderLabel = (props: any) => {
     const d = pieData[props.index]
     if (!d || props.index === 0 || d.pct < 0.3) return null
-    return <DonutLabel cx={props.cx} cy={props.cy} midAngle={props.midAngle} outerRadius={props.outerRadius} pct={d.pct} fill={d.fill} name={d.name} />
+    return <DonutLabel cx={props.cx} cy={props.cy} midAngle={props.midAngle} outerRadius={props.outerRadius} pct={d.pct} fill={d.fill} short={d.name} />
   }
   const marginPct = data[0]?.pct ?? 0
   return (
@@ -427,11 +480,11 @@ const ContribucionMarginalDashboard: React.FC = () => {
 
   const radialData: DonutSlice[] = useMemo(() => {
     if (!kpis) return []
-    const total = kpis.venta_bruta || 1
     return [
-      { name: 'Contr. Marginal', value: kpis.margen, pct: parseFloat(((kpis.margen / total) * 100).toFixed(1)), fill: RADIAL_COLORS.ventas },
-      { name: 'Costos (P.P.P.)', value: kpis.costos, pct: parseFloat(((kpis.costos / total) * 100).toFixed(1)), fill: RADIAL_COLORS.costos },
-      { name: 'Gastos Logísticos', value: kpis.gastos_logisticos, pct: parseFloat(((kpis.gastos_logisticos / total) * 100).toFixed(1)), fill: RADIAL_COLORS.gastos },
+      { name: 'Contr. Marginal',    short: 'CM',      value: kpis.margen,             pct: kpis.pct_margen,             fill: RADIAL_COLORS.ventas },
+      { name: 'Costos (P.P.P.)',    short: 'Costos',  value: kpis.costos,             pct: kpis.pct_costos,             fill: RADIAL_COLORS.costos },
+      { name: 'Gastos Logísticos',  short: 'Logíst.', value: kpis.gastos_logisticos,  pct: kpis.pct_gastos,             fill: RADIAL_COLORS.gastos },
+      { name: 'Gastos Comerciales', short: 'Comerc.', value: kpis.gastos_comerciales, pct: kpis.pct_gastos_comerciales, fill: RADIAL_COLORS.comerciales },
     ]
   }, [kpis])
 
@@ -516,7 +569,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard label="Venta Bruta" value={fmtShort(kpis.venta_bruta)} sub={fmt(kpis.venta_bruta)}
           icon={<DollarSign size={18} className="text-emerald-600" />} accent="bg-emerald-100" />
         <KpiCard label="Costos (P.P.P.)" value={fmtShort(kpis.costos)} sub={fmt(kpis.costos)}
@@ -526,6 +579,10 @@ const ContribucionMarginalDashboard: React.FC = () => {
           icon={<Truck size={18} className="text-amber-600" />} accent="bg-amber-100"
           trend={kpis.gastos_logisticos > 0 ? `${fmtPct(kpis.pct_gastos)} sobre venta bruta` : 'Sin gastos en este período'}
           trendColor={kpis.gastos_logisticos > 0 ? 'text-amber-600' : 'text-gray-400'} />
+        <KpiCard label="Gasto Comercial" value={fmtShort(kpis.gastos_comerciales)} sub={fmt(kpis.gastos_comerciales)}
+          icon={<Briefcase size={18} className="text-rose-600" />} accent="bg-rose-100"
+          trend={`${fmtPct(kpis.pct_gastos_comerciales)} sobre venta bruta`} trendColor="text-rose-600"
+          tooltip={<GastoComercialTooltip kpis={kpis} />} />  
         <KpiCard label="Margen (Contr. Marginal)" value={fmtShort(kpis.margen)} sub={fmt(kpis.margen)}
           icon={<TrendingUp size={18} className="text-emerald-600" />} accent="bg-emerald-100"
           trend={`${fmtPct(kpis.pct_margen)} sobre venta bruta`}
@@ -638,7 +695,7 @@ const ContribucionMarginalDashboard: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-md flex flex-col">
           <div className="mb-2">
             <h2 className="text-sm font-semibold text-gray-700">Composición de la Venta Bruta</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Costos y gastos logísticos sobre el total</p>
+            <p className="text-xs text-gray-400 mt-0.5">Costos, gastos logísticos y comerciales sobre el total</p>
           </div>
           <div className="flex-1 flex items-center justify-center"><ComposicionDonut data={radialData} /></div>
           <div className="space-y-2 mt-3 border-t border-gray-100 pt-3">
