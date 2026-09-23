@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   X, FileText, Calendar, Hash, Truck, TrendingUp, Package, DollarSign,
-  AlertCircle, CheckCircle2, Clock, Building2, ChevronRight,
+  AlertCircle, CheckCircle2, Clock, Building2, ChevronRight, Briefcase,
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL // confirmar nombre real de la env var
@@ -38,13 +38,16 @@ export interface RegistroCM {
 }
 
 interface ProductoVendido {
+  nro_factura: string | null
   producto: string
   cantidad: number
   unidad_venta: string
   precio: number
   importe: number
+  moneda: string | null
   familia: string | null
   subfamilia: string | null
+  estado_vinculacion: string | null
 }
 
 interface ProductoConsumido {
@@ -56,14 +59,26 @@ interface ProductoConsumido {
   pct_participacion: number
 }
 
+/** Nivel OT, desde prod.gold_cm_modal_kpis. Los % vienen de la Gold. */
+interface ResumenFinanciero {
+  nro_ot: string | null
+  venta_bruta: number
+  costo: number
+  gastos_logisticos: number
+  gastos_comerciales: number
+  gastos_comerciales_vendedor: number
+  gastos_comerciales_tecnico: number
+  contribucion_marginal: number
+  pct_costos: number
+  pct_gastos_logisticos: number
+  pct_gastos_comerciales: number
+  pct_margen: number
+  cantidad_personas_asignadas: number
+  ultima_actualizacion: string | null
+}
+
 interface OtDetalleCompleto {
-  resumen_financiero: {
-    venta_bruta: number
-    costo: number
-    gastos_logisticos: number
-    contribucion_marginal: number
-    pct_margen: number
-  }
+  resumen_financiero: ResumenFinanciero | null   // null = fila de CM sin OT en la Gold
   info_operativa: {
     paciente: string | null
     medico: string | null
@@ -72,7 +87,7 @@ interface OtDetalleCompleto {
     tecnico: string | null
     fuente: string
   }
-  producto_vendido: { comprobante: string; cliente: string; total: number; productos: ProductoVendido[] } | null
+  producto_vendido: { comprobante: string; productos: ProductoVendido[] } | null
   consumo: { nro_remito: string; importe_total: number; productos: ProductoConsumido[] } | null
 }
 
@@ -108,59 +123,46 @@ function margenBg(pct: number): string {
   return 'bg-red-50 border-red-200'
 }
 
+
 // ============================================================
-// WATERFALL BAR
+// COMPOSICIÓN SOBRE VENTA BRUTA — % tal cual vienen de la Gold
 // ============================================================
 
-const WaterfallBar: React.FC<{ ventaBruta: number; costo: number; gastosLog: number; cm: number; pctMargen: number }> = ({
-  ventaBruta, costo, gastosLog, cm, pctMargen,
-}) => {
-  const total = ventaBruta || 1
-  const pctCosto = (costo / total) * 100
-  const pctGastos = (gastosLog / total) * 100
-  const pctCm = (cm / total) * 100
-
-  const bars = [
-    { label: 'Costo PPP', value: costo, pct: pctCosto, color: 'bg-indigo-400', textColor: 'text-indigo-700' },
-    { label: 'Gs. Logísticos', value: gastosLog, pct: pctGastos, color: 'bg-amber-400', textColor: 'text-amber-700', hide: gastosLog === 0 },
-    { label: 'Contrib. Marginal', value: cm, pct: pctCm, color: 'bg-emerald-500', textColor: 'text-emerald-700' },
-  ].filter(b => !b.hide)
+const WaterfallBar: React.FC<{ r: ResumenFinanciero }> = ({ r }) => {
+  const segmentos = [
+    { label: 'Costo PPP',         value: r.costo,                 pct: r.pct_costos,             color: 'bg-indigo-400',  text: 'text-indigo-700' },
+    { label: 'Gs. Logísticos',    value: r.gastos_logisticos,     pct: r.pct_gastos_logisticos,  color: 'bg-amber-400',   text: 'text-amber-700' },
+    { label: 'Gs. Comerciales',   value: r.gastos_comerciales,    pct: r.pct_gastos_comerciales, color: 'bg-rose-400',    text: 'text-rose-700' },
+    { label: 'Contrib. Marginal', value: r.contribucion_marginal, pct: r.pct_margen,             color: 'bg-emerald-500', text: 'text-emerald-700' },
+  ]
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-1">
         <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Composición sobre venta bruta</p>
-        <p className="text-xs font-mono font-bold text-gray-600">{fmtShort(ventaBruta)}</p>
+        <p className="text-xs font-mono font-bold text-gray-600">{fmtShort(r.venta_bruta)}</p>
       </div>
+
+      {/* Math.max(0, …): una CM negativa (ej. NC) no puede dibujar un ancho negativo */}
       <div className="w-full h-6 rounded-lg overflow-hidden flex bg-gray-100">
-        <div className="bg-indigo-400 h-full transition-all" style={{ width: `${Math.max(pctCosto, 0.5)}%` }} />
-        {gastosLog > 0 && <div className="bg-amber-400 h-full transition-all" style={{ width: `${Math.max(pctGastos, 0.5)}%` }} />}
-        <div className="bg-emerald-500 h-full transition-all flex-1" />
+        {segmentos.map(s => (
+          <div key={s.label} className={`${s.color} h-full`} style={{ width: `${Math.max(0, s.pct)}%` }} />
+        ))}
       </div>
+
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-sm bg-gray-200 inline-block" />
-            <span className="text-gray-500">Venta Bruta</span>
-          </div>
-          <span className="font-mono font-semibold text-gray-700">{fmtShort(ventaBruta)}</span>
-        </div>
-        {bars.map(b => (
-          <div key={b.label} className="flex items-center justify-between text-xs">
+        {segmentos.map(s => (
+          <div key={s.label} className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-sm inline-block ${b.color}`} />
-              <span className="text-gray-500">{b.label}</span>
+              <span className={`w-3 h-3 rounded-sm inline-block ${s.color}`} />
+              <span className="text-gray-500">{s.label}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-medium ${b.textColor}`}>{fmtPct(b.pct)}</span>
-              <span className="font-mono font-semibold text-gray-700">{fmtShort(b.value)}</span>
+              <span className={`text-[10px] font-medium ${s.text}`}>{fmtPct(s.pct)}</span>
+              <span className="font-mono font-semibold text-gray-700">{fmtShort(s.value)}</span>
             </div>
           </div>
         ))}
-        <div className={`flex items-center justify-between text-sm mt-1 pt-2 border-t font-semibold rounded-lg px-2 py-1.5 border ${margenBg(pctMargen)}`}>
-          <span className={margenColor(pctMargen)}>% Margen</span>
-          <span className={`font-mono font-bold text-base ${margenColor(pctMargen)}`}>{fmtPct(pctMargen)}</span>
-        </div>
       </div>
     </div>
   )
@@ -174,15 +176,16 @@ const EstadoBadge: React.FC<{ estado: string | null }> = ({ estado }) => {
   return <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full"><AlertCircle size={11} /> {estado || '—'}</span>
 }
 
-const KpiMini: React.FC<{ label: string; value: string; sub?: string; accent: string; textColor: string; icon: React.ReactNode }> = ({
-  label, value, sub, accent, textColor, icon,
+const KpiMini: React.FC<{ label: string; value: string; sub?: string; accent: string; textColor: string; icon: React.ReactNode; children?: React.ReactNode }> = ({
+  label, value, sub, accent, textColor, icon, children,
 }) => (
   <div className={`rounded-xl border p-4 flex items-start gap-3 ${accent}`}>
     <div className="mt-0.5 shrink-0">{icon}</div>
-    <div className="min-w-0">
+    <div className="min-w-0 flex-1">
       <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold mb-0.5">{label}</p>
       <p className={`text-lg font-bold font-mono leading-tight ${textColor}`}>{value}</p>
       {sub && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{sub}</p>}
+      {children}
     </div>
   </div>
 )
@@ -281,47 +284,68 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, onClose }) => {
 
           {!loading && !error && detalle && (
             <>
-              {/* KPIs + Waterfall */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Resumen Financiero</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <KpiMini label="Venta Bruta" value={fmtShort(detalle.resumen_financiero.venta_bruta)} sub={fmt(detalle.resumen_financiero.venta_bruta)}
-                      accent="bg-blue-50 border border-blue-100" textColor="text-blue-700" icon={<DollarSign size={16} className="text-blue-500" />} />
-                    <KpiMini label="Costo Productos" value={fmtShort(detalle.resumen_financiero.costo)} sub={fmt(detalle.resumen_financiero.costo)}
-                      accent="bg-indigo-50 border border-indigo-100" textColor="text-indigo-700" icon={<Package size={16} className="text-indigo-500" />} />
-                    <KpiMini label="Gs. Logísticos"
-                      value={detalle.resumen_financiero.gastos_logisticos > 0 ? fmtShort(detalle.resumen_financiero.gastos_logisticos) : '$0'}
-                      sub={detalle.resumen_financiero.gastos_logisticos > 0 ? fmt(detalle.resumen_financiero.gastos_logisticos) : 'Sin gastos'}
-                      accent="bg-amber-50 border border-amber-100"
-                      textColor={detalle.resumen_financiero.gastos_logisticos > 0 ? 'text-amber-700' : 'text-gray-400'}
-                      icon={<Truck size={16} className="text-amber-500" />} />
-                  </div>
-                  <div className={`rounded-xl border p-4 flex items-center justify-between ${margenBg(detalle.resumen_financiero.pct_margen)}`}>
-                    <div className="flex items-center gap-3">
-                      <TrendingUp size={18} className={margenColor(detalle.resumen_financiero.pct_margen)} />
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Contribución Marginal</p>
-                        <p className={`text-xl font-bold font-mono ${margenColor(detalle.resumen_financiero.pct_margen)}`}>{fmtShort(detalle.resumen_financiero.contribucion_marginal)}</p>
-                        <p className="text-[10px] font-mono text-gray-400">{fmt(detalle.resumen_financiero.contribucion_marginal)}</p>
+                            {/* KPIs + Composición — nivel OT (gold_cm_modal_kpis) */}
+              {!detalle.resumen_financiero ? (
+                <div className="rounded-xl border border-dashed border-gray-200 p-6 text-center">
+                  <AlertCircle size={20} className="text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Esta operación no tiene una OT asociada en el lakehouse.</p>
+                  <p className="text-xs text-gray-400 mt-1">No hay resumen económico para mostrar.</p>
+                </div>
+              ) : (() => {
+                const r = detalle.resumen_financiero
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                        Resumen Financiero de la OT
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <KpiMini label="Venta Bruta" value={fmtShort(r.venta_bruta)} sub={fmt(r.venta_bruta)}
+                          accent="bg-blue-50 border border-blue-100" textColor="text-blue-700"
+                          icon={<DollarSign size={16} className="text-blue-500" />} />
+                        <KpiMini label="Costo Productos" value={fmtShort(r.costo)} sub={fmt(r.costo)}
+                          accent="bg-indigo-50 border border-indigo-100" textColor="text-indigo-700"
+                          icon={<Package size={16} className="text-indigo-500" />} />
+                        <KpiMini label="Gs. Logísticos" value={fmtShort(r.gastos_logisticos)} sub={fmt(r.gastos_logisticos)}
+                          accent="bg-amber-50 border border-amber-100"
+                          textColor={r.gastos_logisticos > 0 ? 'text-amber-700' : 'text-gray-400'}
+                          icon={<Truck size={16} className="text-amber-500" />} />
+                        <KpiMini label="Gasto Comercial" value={fmtShort(r.gastos_comerciales)} sub={fmt(r.gastos_comerciales)}
+                          accent="bg-rose-50 border border-rose-100"
+                          textColor={r.gastos_comerciales > 0 ? 'text-rose-700' : 'text-gray-400'}
+                          icon={<Briefcase size={16} className="text-rose-500" />}>
+                          <div className="mt-2 space-y-0.5 text-[10px]">
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-500">Vendedor</span>
+                              <span className="font-mono text-gray-700">{fmt(r.gastos_comerciales_vendedor)}</span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-500">Técnico</span>
+                              <span className="font-mono text-gray-700">{fmt(r.gastos_comerciales_tecnico)}</span>
+                            </div>
+                          </div>
+                        </KpiMini>
+                      </div>
+
+                      <div className={`rounded-xl border p-4 flex items-center justify-between ${margenBg(r.pct_margen)}`}>
+                        <div className="flex items-center gap-3">
+                          <TrendingUp size={18} className={margenColor(r.pct_margen)} />
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Contribución Marginal</p>
+                            <p className={`text-xl font-bold font-mono ${margenColor(r.pct_margen)}`}>{fmtShort(r.contribucion_marginal)}</p>
+                            <p className="text-[10px] font-mono text-gray-400">{fmt(r.contribucion_marginal)}</p>
+                          </div>
+                        </div>
+                        <div className={`text-4xl font-black font-mono ${margenColor(r.pct_margen)}`}>{fmtPct(r.pct_margen)}</div>
                       </div>
                     </div>
-                    <div className={`text-4xl font-black font-mono ${margenColor(detalle.resumen_financiero.pct_margen)}`}>
-                      {fmtPct(detalle.resumen_financiero.pct_margen)}
+
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+                      <WaterfallBar r={r} />
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
-                  <WaterfallBar
-                    ventaBruta={detalle.resumen_financiero.venta_bruta}
-                    costo={detalle.resumen_financiero.costo}
-                    gastosLog={detalle.resumen_financiero.gastos_logisticos}
-                    cm={detalle.resumen_financiero.contribucion_marginal}
-                    pctMargen={detalle.resumen_financiero.pct_margen}
-                  />
-                </div>
-              </div>
+                )
+              })()}
 
               {/* Producto(s) Vendido(s) */}
               <div>
@@ -345,6 +369,13 @@ const OTDetalleModal: React.FC<OTDetalleModalProps> = ({ row, onClose }) => {
                             <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 flex-wrap">
                               <span>Cant.: <span className="font-mono font-medium text-gray-700">{p.cantidad} {p.unidad_venta}</span></span>
                               {p.familia && <span>Familia: <span className="font-mono text-gray-700">{p.familia}</span></span>}
+                              {p.nro_factura && <span>Factura: <span className="font-mono text-gray-700">{p.nro_factura}</span></span>}
+                              {p.estado_vinculacion && p.estado_vinculacion !== 'VINCULACION_EXACTA' && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200"
+                                  title="El ítem del remito no tiene una línea de factura vinculada de forma exacta">
+                                  {p.estado_vinculacion.replace(/_/g, ' ').toLowerCase()}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
