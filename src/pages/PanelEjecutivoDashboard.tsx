@@ -672,25 +672,34 @@ const PanelEjecutivoDashboard: React.FC = () => {
         >
           {inventario && (
             <div className="border-t border-gray-100 pt-2 space-y-1 text-[11px] sm:text-xs">
-              {inventario.variacion ? (() => {
+              {inventario.variacion && inventario.cierre_anterior ? (() => {
+                const cierre = inventario.cierre_anterior;
+                const importeCierre = moneda === "USD" ? cierre.importe_usd : cierre.importe_ars;
                 const vImporte = moneda === "USD" ? inventario.variacion.importe_usd : inventario.variacion.importe_ars;
                 const vUnidades = inventario.variacion.unidades;
                 const color = (n: number) => (n > 0 ? "text-emerald-600" : n < 0 ? "text-red-600" : "text-gray-500");
+                const flecha = (n: number) => (n > 0 ? "▲" : n < 0 ? "▼" : "=");
+                const pct = (p: number | null) => (p === null ? "" : ` (${conSigno(fmtPct(Math.abs(p)), p)})`);
                 return (
                   <>
-                    <p className="text-gray-500">vs cierre {fmtFechaCorta(inventario.fecha_cierre_anterior)}</p>
                     <div className="flex justify-between gap-2">
-                      <span className="text-gray-500">Valor</span>
-                      <span className={`font-mono font-semibold ${color(vImporte.absoluta)}`}>
-                        {conSigno(fmtShort(Math.abs(vImporte.absoluta), moneda), vImporte.absoluta)}
-                        {vImporte.pct !== null && ` (${conSigno(fmtPct(Math.abs(vImporte.pct)), vImporte.pct)})`}
+                      <span className="text-gray-500">Al cierre {fmtFechaCorta(inventario.fecha_cierre_anterior)}</span>
+                      <span className="font-mono text-gray-700">
+                        {fmtShort(importeCierre, moneda)} · {cierre.unidades.toLocaleString("es-AR")} u.
                       </span>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-gray-500">Unidades</span>
+                      <span className="text-gray-500">Variación valor</span>
+                      <span className={`font-mono font-semibold ${color(vImporte.absoluta)}`}>
+                        {flecha(vImporte.absoluta)} {conSigno(fmtShort(Math.abs(vImporte.absoluta), moneda), vImporte.absoluta)}
+                        {pct(vImporte.pct)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Variación unidades</span>
                       <span className={`font-mono font-semibold ${color(vUnidades.absoluta)}`}>
-                        {conSigno(Math.abs(vUnidades.absoluta).toLocaleString("es-AR"), vUnidades.absoluta)}
-                        {vUnidades.pct !== null && ` (${conSigno(fmtPct(Math.abs(vUnidades.pct)), vUnidades.pct)})`}
+                        {flecha(vUnidades.absoluta)} {conSigno(Math.abs(vUnidades.absoluta).toLocaleString("es-AR"), vUnidades.absoluta)}
+                        {pct(vUnidades.pct)}
                       </span>
                     </div>
                   </>
