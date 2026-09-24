@@ -25,6 +25,7 @@ import {
   CalendarDays,
   ClipboardList,
   Info,
+  HandCoins,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL; // confirmar nombre real de la env var
@@ -60,11 +61,13 @@ interface PanelEjecutivoKpis {
   mes: number | null;
   facturado: number;
   cobrado: number;
-  contribucion_marginal: number;
   giro_negocio_pct: number;
-  venta_bruta_cm: number;
-  contribucion_marginal_pct: number;
   ordenes_compra: number;
+  deuda_total: number;
+  deuda_vencida: number;
+  deuda_vencida_pct: number;
+  deuda_no_vencida: number;
+  deuda_no_vencida_pct: number;
 }
 
 
@@ -197,6 +200,7 @@ const KpiCard: React.FC<{
   tooltip?: string;
   linkLabel?: string;
   onLinkClick?: () => void;
+  children?: React.ReactNode;
 }> = ({
   label,
   value,
@@ -210,6 +214,8 @@ const KpiCard: React.FC<{
   tooltip,
   linkLabel,
   onLinkClick,
+  children,
+  
 }) => (
   <div className="bg-white rounded-xl border border-slate-300 p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 shadow-md">
     <div className="flex items-center justify-between">
@@ -257,6 +263,7 @@ const KpiCard: React.FC<{
         {trend}
       </div>
     )}
+    {children && !loading && !error && children}
     {linkLabel && onLinkClick && !loading && !error && (
       <button
         onClick={onLinkClick}
@@ -490,7 +497,7 @@ const PanelEjecutivoDashboard: React.FC = () => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <KpiCard
           label="Facturado"
           value={panelKpis ? fmtMoneyShort(panelKpis.facturado) : "—"}
@@ -551,6 +558,45 @@ const PanelEjecutivoDashboard: React.FC = () => {
               : undefined
           }
         />
+        <KpiCard
+          label="Estado de Deuda"
+          value={panelKpis ? fmtMoneyShort(panelKpis.deuda_total) : "—"}
+          sub={
+            panelKpis
+              ? mesSeleccionado !== null
+                ? `Al cierre de ${panelKpis.periodo_nombre}`
+                : "Última foto disponible del año"
+              : undefined
+          }
+          icon={<HandCoins size={18} className="text-rose-600" />}
+          accent="bg-rose-100"
+          loading={panelLoading}
+          error={panelError}
+          tooltip="Cuenta corriente de clientes. Vencida: días de mora > 0."
+        >
+          {panelKpis && (
+            <div className="border-t border-gray-100 pt-2 space-y-1.5 text-[11px] sm:text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <span className="w-2 h-2 rounded-full bg-red-500" /> Vencida
+                </span>
+                <span className="text-right">
+                  <span className="font-mono font-semibold text-gray-800">{fmtMoneyShort(panelKpis.deuda_vencida)}</span>
+                  <span className="ml-1.5 text-red-600 font-semibold">{fmtPct(panelKpis.deuda_vencida_pct)}</span>
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> No vencida
+                </span>
+                <span className="text-right">
+                  <span className="font-mono font-semibold text-gray-800">{fmtMoneyShort(panelKpis.deuda_no_vencida)}</span>
+                  <span className="ml-1.5 text-emerald-600 font-semibold">{fmtPct(panelKpis.deuda_no_vencida_pct)}</span>
+                </span>
+              </div>
+            </div>
+          )}
+        </KpiCard>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-300 p-4 text-xs sm:text-sm text-gray-500 shadow-md">
