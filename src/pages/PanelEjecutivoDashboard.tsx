@@ -26,6 +26,7 @@ import {
   ClipboardList,
   Info,
   HandCoins,
+  Package,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL; // confirmar nombre real de la env var
@@ -70,6 +71,34 @@ interface PanelEjecutivoKpis {
   deuda_no_vencida_pct: number;
 }
 
+interface TotalesInventario {
+  unidades: number;
+  importe_usd: number;
+  importe_ars: number;
+}
+
+interface VariacionInventario {
+  absoluta: number;
+  pct: number | null; // null si el cierre anterior era 0
+}
+
+interface InventarioResumen {
+  fecha: string; // "YYYY-MM-DD"
+  actual: TotalesInventario;
+  fecha_cierre_anterior: string;
+  cierre_anterior: TotalesInventario | null;
+  variacion: {
+    unidades: VariacionInventario;
+    importe_usd: VariacionInventario;
+    importe_ars: VariacionInventario;
+  } | null;
+  ultima_sincronizacion: {
+    estado: string;
+    tipo_error: string | null;
+    finalizado_en: string | null;
+  } | null;
+}
+
 
 const fmtARS = (n: number) =>
   new Intl.NumberFormat("es-AR", {
@@ -85,6 +114,7 @@ const fmtUSD = (n: number) =>
   }).format(n);
 
 const fmtShort = (n: number, moneda: Moneda): string => {
+  if (n == null || Number.isNaN(n)) return "—"; // dato faltante: mostrar guion, no romper la página
   const symbol = moneda === "USD" ? "US$" : "$";
   if (Math.abs(n) >= 1_000_000_000)
     return `${symbol}${(n / 1_000_000_000).toFixed(2)}B`;
@@ -94,13 +124,22 @@ const fmtShort = (n: number, moneda: Moneda): string => {
   return `${symbol}${n.toFixed(0)}`;
 };
 
-const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+const fmtPct = (n: number) => (n == null || Number.isNaN(n) ? "—" : `${n.toFixed(1)}%`);
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`, { credentials: "include" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+// "2026-09-23" -> "23/09". NO usar new Date("2026-09-23"): JS lo interpreta
+// como medianoche UTC y en Argentina (UTC-3) se muestra como el 22/09.
+const fmtFechaCorta = (iso: string) => {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+};
+
+const conSigno = (texto: string, n: number) => (n > 0 ? `+${texto}` : n < 0 ? `−${texto}` : texto);
 
 function useBcraCotizacion(): BcraCotizacion {
   const [state, setState] = useState<BcraCotizacion>({
@@ -315,6 +354,20 @@ const PanelEjecutivoDashboard: React.FC = () => {
   const [panelLoading, setPanelLoading] = useState(true);
   const [panelError, setPanelError] = useState(false);
 
+  // Inventario: siempre la última foto, independiente del filtro de período.
+  const [inventario, setInventario] = useState<InventarioResumen | null>(null);
+  const [inventarioLoading, setInventarioLoading] = useState(true);
+  const [inventarioError, setInventarioError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet<InventarioResumen>("/api/v1/inventario/resumen")
+      .then((data) => { if (!cancelled) setInventario(data); })
+      .catch(() => { if (!cancelled) setInventarioError(true); })
+      .finally(() => { if (!cancelled) setInventarioLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const mesesDisponibles = periodosDisponibles
     .filter((periodo) => periodo.anio === anioSeleccionado)
     .sort((periodoA, periodoB) => periodoA.mes - periodoB.mes);
@@ -497,7 +550,7 @@ const PanelEjecutivoDashboard: React.FC = () => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <KpiCard
           label="Facturado"
           value={panelKpis ? fmtMoneyShort(panelKpis.facturado) : "—"}
@@ -594,6 +647,72 @@ const PanelEjecutivoDashboard: React.FC = () => {
                   <span className="ml-1.5 text-emerald-600 font-semibold">{fmtPct(panelKpis.deuda_no_vencida_pct)}</span>
                 </span>
               </div>
+            </div>
+          )}
+        </KpiCard>
+        <KpiCard
+          label="Inventario"
+          value={
+            inventario
+              ? moneda === "USD"
+                ? fmtShort(inventario.actual.importe_usd, "USD")
+                : fmtShort(inventario.actual.importe_ars, "ARS")
+              : "—"
+          }
+          sub={
+            inventario
+              ? `${inventario.actual.unidades.toLocaleString("es-AR")} unidades · stock al ${fmtFechaCorta(inventario.fecha)}`
+              : undefined
+          }
+          icon={<Package size={18} className="text-cyan-600" />}
+          accent="bg-cyan-100"
+          loading={inventarioLoading}
+          error={inventarioError}
+          tooltip="Stock de todos los depósitos, valorizado a último costo de compra. En pesos, a la cotización del día. No depende del período seleccionado."
+        >
+          {inventario && (
+            <div className="border-t border-gray-100 pt-2 space-y-1 text-[11px] sm:text-xs">
+              {inventario.variacion && inventario.cierre_anterior ? (() => {
+                const cierre = inventario.cierre_anterior;
+                const importeCierre = moneda === "USD" ? cierre.importe_usd : cierre.importe_ars;
+                const vImporte = moneda === "USD" ? inventario.variacion.importe_usd : inventario.variacion.importe_ars;
+                const vUnidades = inventario.variacion.unidades;
+                const color = (n: number) => (n > 0 ? "text-emerald-600" : n < 0 ? "text-red-600" : "text-gray-500");
+                const flecha = (n: number) => (n > 0 ? "▲" : n < 0 ? "▼" : "=");
+                const pct = (p: number | null) => (p === null ? "" : ` (${conSigno(fmtPct(Math.abs(p)), p)})`);
+                return (
+                  <>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Al cierre {fmtFechaCorta(inventario.fecha_cierre_anterior)}</span>
+                      <span className="font-mono text-gray-700">
+                        {fmtShort(importeCierre, moneda)} · {cierre.unidades.toLocaleString("es-AR")} u.
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Variación valor</span>
+                      <span className={`font-mono font-semibold ${color(vImporte.absoluta)}`}>
+                        {flecha(vImporte.absoluta)} {conSigno(fmtShort(Math.abs(vImporte.absoluta), moneda), vImporte.absoluta)}
+                        {pct(vImporte.pct)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-500">Variación unidades</span>
+                      <span className={`font-mono font-semibold ${color(vUnidades.absoluta)}`}>
+                        {flecha(vUnidades.absoluta)} {conSigno(Math.abs(vUnidades.absoluta).toLocaleString("es-AR"), vUnidades.absoluta)}
+                        {pct(vUnidades.pct)}
+                      </span>
+                    </div>
+                  </>
+                );
+              })() : (
+                <p className="text-gray-400">Sin foto del cierre {fmtFechaCorta(inventario.fecha_cierre_anterior)} para comparar</p>
+              )}
+
+              {inventario.ultima_sincronizacion?.estado === "error" && (
+                <p className="text-amber-600 font-medium pt-1">
+                  ⚠ La última actualización falló. Se muestra el stock al {fmtFechaCorta(inventario.fecha)}.
+                </p>
+              )}
             </div>
           )}
         </KpiCard>
